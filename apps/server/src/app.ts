@@ -1,20 +1,36 @@
 import { existsSync } from 'node:fs';
 import path from 'node:path';
+import fastifyRateLimit from '@fastify/rate-limit';
 import fastifyStatic from '@fastify/static';
 import fastifySwagger from '@fastify/swagger';
 import fastifySwaggerUi from '@fastify/swagger-ui';
-import Fastify, { type FastifyInstance, type FastifyServerOptions } from 'fastify';
+import Fastify, {
+  type FastifyError,
+  type FastifyInstance,
+  type FastifyServerOptions,
+} from 'fastify';
 import {
+  hasZodFastifySchemaValidationErrors,
   jsonSchemaTransform,
   serializerCompiler,
   validatorCompiler,
 } from 'fastify-type-provider-zod';
+import { registerAuth } from './auth/http.js';
+import { SessionStore } from './auth/sessions.js';
+import type { SetupToken } from './auth/setup-token.js';
+import type { Db } from './db/client.js';
 import { registerHealthRoute, type HealthCheck } from './health.js';
+import { registerAuthRoutes } from './routes/auth.js';
+import { registerSetupRoutes } from './routes/setup.js';
+import { registerUserRoutes } from './routes/users.js';
 
 export type AppOptions = {
   version: string;
   logger: FastifyServerOptions['logger'];
   checks: { database: HealthCheck; queue: HealthCheck };
+  db: Db;
+  sessionSecret: string;
+  setupToken: SetupToken;
   /** Directory holding the built web UI. Static serving is skipped when unset or missing. */
   webRoot?: string | undefined;
 };
@@ -36,7 +52,37 @@ export async function buildApp(options: AppOptions): Promise<FastifyInstance> {
   });
   await app.register(fastifySwaggerUi, { routePrefix: '/api/docs' });
 
+  app.setErrorHandler((err: FastifyError, request, reply) => {
+    if (hasZodFastifySchemaValidationErrors(err)) {
+      const first = err.validation[0];
+      const field = first?.instancePath.replace(/^\//, '').replaceAll('/', '.');
+      const message = first
+        ? `${field ? `${field}: ` : ''}${first.message ?? 'is invalid'}`
+        : 'Invalid request';
+      return reply.code(400).send({ error: 'validation', message });
+    }
+    const status = err.statusCode ?? 500;
+    if (status === 429) {
+      return reply
+        .code(429)
+        .send({ error: 'rate_limited', message: 'Too many requests; slow down' });
+    }
+    if (status < 500) {
+      return reply.code(status).send({ error: err.code ?? 'bad_request', message: err.message });
+    }
+    request.log.error({ err }, 'unhandled error');
+    return reply.code(500).send({ error: 'internal', message: 'Something went wrong' });
+  });
+
+  await app.register(fastifyRateLimit, { global: false });
+  const sessions = new SessionStore(options.db, options.sessionSecret);
+  await registerAuth(app, sessions);
+
   registerHealthRoute(app, { version: options.version, checks: options.checks });
+  const deps = { db: options.db, sessions, setupToken: options.setupToken };
+  registerSetupRoutes(app, deps);
+  registerAuthRoutes(app, deps);
+  registerUserRoutes(app, deps);
 
   const webRoot = options.webRoot ? path.resolve(options.webRoot) : undefined;
   const serveWeb = webRoot !== undefined && existsSync(path.join(webRoot, 'index.html'));

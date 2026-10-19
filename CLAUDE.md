@@ -10,7 +10,8 @@ acceptance criteria.
 | Milestone                                                               | State                    |
 | ----------------------------------------------------------------------- | ------------------------ |
 | M0 Scaffold, image, compose, `/healthz`, CI, LICENSE, CLAUDE.md         | Done (CI green on PR #1) |
-| M1 Migrations, setup wizard, local login, roles, sessions, recovery CLI | Next                     |
+| M1 Migrations, setup wizard, local login, roles, sessions, recovery CLI | Built; awaiting green CI |
+| M2 Asset types, custom fields, asset CRUD, unique numbers, CSV import   | Next                     |
 
 Update this table when a milestone is committed.
 
@@ -53,6 +54,14 @@ TEST_DATABASE_URL=postgres://postgres:test@localhost:5433/itsm_test pnpm test
 # Full stack from this checkout on https://localhost (Caddy internal CA)
 docker compose -f compose.yml -f compose.build.yml up -d --build
 scripts/compose-smoke.sh     # what CI runs: build, start, check /healthz through Caddy, tear down
+
+# Database schema changes: edit apps/server/src/db/schema.ts, then generate a SQL migration
+pnpm --filter @open-itsm/server db:generate --name <change>
+# Raw SQL (triggers, functions): drizzle-kit generate --custom --name <change>, then fill it in
+
+# Recovery CLI (in production: docker compose exec app itsm <command>)
+pnpm --filter @open-itsm/server cli list-users
+pnpm --filter @open-itsm/server cli reset-password admin@example.com [--enable]
 ```
 
 `pnpm dev` reads `../../.env` for the server if it exists; set `DATABASE_URL` to a reachable
@@ -66,8 +75,16 @@ apps/server       Fastify API; also serves the built web UI from WEB_ROOT
   src/app.ts      buildApp(): plugins, routes, static/SPA fallback (tests call this directly)
   src/config.ts   env parsing with zod; errors never echo values
   src/health.ts   GET /healthz (app, database, queue; 503 when any is down)
-  test/           vitest; *.integration.test.ts need TEST_DATABASE_URL
+  src/db/         schema.ts (Drizzle tables), client.ts (pool, db, runMigrations)
+  src/auth/       password (argon2id), sessions, setup token, http (cookie, CSRF, requireRole)
+  src/routes/     setup, auth (login/logout/session), users (admin only)
+  src/audit.ts    append-only audit log writer
+  src/recovery.ts recovery commands; src/cli.ts is the `itsm` entrypoint in the image
+  drizzle/        generated SQL migrations, applied at startup in one transaction
+  test/           vitest; *.integration.test.ts need TEST_DATABASE_URL (each file gets its own DB)
 apps/web          React + Vite + TanStack Router/Query + Tailwind v4, shadcn/ui-ready
+  src/routes/     setup, login, authed layout (redirects to setup/login), index, admin-users
+  src/lib/        api.ts (fetch wrapper, CSRF header), queries.ts (TanStack Query options)
 packages/shared   zod schemas and types shared by server and web
 compose.yml       app + db + caddy; the file operators download (Caddyfile is inline)
 compose.build.yml override that builds the app image from the checkout
@@ -116,12 +133,47 @@ Dockerfile        multi-stage; runtime runs as `node`, files root-owned
   release workflow that publishes multi-arch images is M11; CI builds but does not push.
 - **Docker production deps** come from `pnpm install --prod --filter "@open-itsm/server..."`
   against the lockfile rather than `pnpm deploy`, whose legacy mode ignores the lockfile.
+- **Migrations** are Drizzle SQL files in `apps/server/drizzle`, applied by `runMigrations` at
+  startup before anything else. Drizzle runs all pending files in one transaction, so a failure
+  rolls back and the app exits without changing data. (The pre-migration backup is M11.)
+- **Rules enforced in the database:** unique emails stored lowercase (check constraint), role
+  enum, non-negative failed-login count, and an append-only `audit_log` (triggers reject UPDATE,
+  DELETE and TRUNCATE). Users are disabled, never deleted; audit FKs to users have no cascade.
+- **Passwords:** argon2id via Node's built-in `crypto.argon2` (no native dependency), OWASP
+  parameters m=19456 KiB, t=2, p=1, stored as PHC strings. Minimum 12 characters, maximum 256,
+  no composition rules (user's choice). Unknown emails still run a dummy verify to keep timing
+  equal.
+- **Sessions:** random 32-byte token in the `__Host-itsm_session` cookie (HttpOnly, Secure,
+  SameSite=Lax); the DB stores only HMAC-SHA256(SESSION_SECRET, token). 12 h idle, 7 days max
+  (user's choice). Disabling a user or setting their password revokes their sessions. Role changes
+  apply on the next request because the user row is joined on every lookup. The session lookup
+  runs only for `/api/*` requests.
+- **CSRF:** every non-GET request is refused if its `Origin` (or `Sec-Fetch-Site`) is another
+  site. Requests with a session must also send `x-csrf-token` matching the session's token
+  (from `GET /api/auth/session` or the login response). Login and setup are `origin-only`.
+- **Login protection:** 10 attempts per minute per IP (`@fastify/rate-limit`, in memory, login
+  and setup only) plus account lockout for 15 minutes after 5 consecutive failures. Locked
+  accounts get 429 "try again later"; unknown, disabled and wrong-password all get the same 401.
+- **Setup wizard:** works only while `users` is empty. A one-time token is generated at startup
+  in memory and logged at warn level; `POST /api/setup` checks "no users" and inserts under a
+  Postgres advisory lock, so concurrent attempts cannot both win. A restart issues a new token.
+- **User admin (M1, user's choice):** admins list users, create local admin/technician
+  accounts, change role, disable/enable and set passwords. At least one active admin must
+  remain. Local end-user accounts cannot be created (end users arrive in M10 via Entra ID or
+  email links). Self-service password change is in `docs/IDEAS.md`.
+- **Recovery CLI:** `itsm list-users` and `itsm reset-password <email> [--enable]` (prints a
+  random password once, clears lockout, revokes sessions). The "switch off Entra ID sign-in"
+  command lands with Entra ID in M9.
+- **New dependencies in M1:** `@fastify/cookie` (Fastify has no cookie parsing),
+  `@fastify/rate-limit` (per-IP throttling) and `drizzle-kit` (dev, generates migrations).
 - **shadcn/ui:** `apps/web/components.json`, `src/lib/utils.ts` (`cn`) and theme tokens in
-  `src/index.css` are in place; add components with the shadcn CLI as screens need them.
+  `src/index.css` are in place. `src/components/ui` holds small hand-written Button, Input,
+  Select, Label and Card components in the shadcn style (no Radix needed yet); switch to the
+  shadcn CLI versions when a screen needs dialogs, menus or similar.
 
 ## Open questions
 
 - GPL v3 is tentative until the first release (AGPL may be revisited if hosted SaaS happens).
   Do not change `LICENSE` without being told.
-- Admin recovery when SSO is misconfigured and the admin password is lost: answered by the
-  host-level recovery CLI (M1), confirmed in `docs/IMPLEMENTATION.md`.
+- Admin recovery when SSO is misconfigured and the admin password is lost: the host-level
+  recovery CLI (`itsm reset-password`, M1); the SSO switch-off command comes with M9.

@@ -3,18 +3,14 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { healthResponseSchema } from '@open-itsm/shared';
 import { afterEach, describe, expect, it } from 'vitest';
-import { buildApp, type AppOptions } from '../src/app.js';
+import type { AppOptions } from '../src/app.js';
+import { makeApp as buildTestApp } from './helpers/app.js';
 
 const ok = () => Promise.resolve(true);
-let app: Awaited<ReturnType<typeof buildApp>> | undefined;
+let app: Awaited<ReturnType<typeof buildTestApp>> | undefined;
 
 async function makeApp(overrides: Partial<AppOptions> = {}) {
-  app = await buildApp({
-    version: '1.2.3',
-    logger: false,
-    checks: { database: ok, queue: ok },
-    ...overrides,
-  });
+  app = await buildTestApp(overrides);
   return app;
 }
 

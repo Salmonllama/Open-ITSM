@@ -3,7 +3,7 @@ import { createRoute } from '@tanstack/react-router';
 import type { ComponentStatus } from '@open-itsm/shared';
 import { fetchHealth } from '@/lib/api';
 import { cn } from '@/lib/utils';
-import { rootRoute } from './root';
+import { authedRoute } from './authed';
 
 const healthQuery = queryOptions({
   queryKey: ['health'],
@@ -12,7 +12,7 @@ const healthQuery = queryOptions({
 });
 
 export const indexRoute = createRoute({
-  getParentRoute: () => rootRoute,
+  getParentRoute: () => authedRoute,
   path: '/',
   component: SystemStatus,
 });

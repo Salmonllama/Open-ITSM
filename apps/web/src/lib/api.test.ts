@@ -21,3 +21,24 @@ describe('fetchHealth', () => {
     await expect(fetchHealth(respond(502, {}))).rejects.toThrow('HTTP 502');
   });
 });
+
+describe('apiRequest', () => {
+  it('sends the CSRF token on writes but not reads, and surfaces server messages', async () => {
+    const { apiRequest, setCsrfToken, ApiError } = await import('./api');
+    const seen: Array<Record<string, string>> = [];
+    const fetchImpl = (async (_url: string, init?: RequestInit) => {
+      seen.push(init?.headers as Record<string, string>);
+      return new Response(JSON.stringify({ error: 'locked', message: 'Try later' }), {
+        status: 429,
+      });
+    }) as typeof fetch;
+
+    setCsrfToken('tok');
+    await expect(apiRequest('GET', '/api/x', { fetchImpl })).rejects.toBeInstanceOf(ApiError);
+    await expect(apiRequest('POST', '/api/x', { body: {}, fetchImpl })).rejects.toThrow(
+      'Try later',
+    );
+    expect(seen[0]?.['x-csrf-token']).toBeUndefined();
+    expect(seen[1]?.['x-csrf-token']).toBe('tok');
+  });
+});
