@@ -12,7 +12,7 @@ voice, logo) and the page mockups that every screen must follow.
 | ----------------------------------------------------------------------- | ------------------------------------------------------- |
 | M0 Scaffold, image, compose, `/healthz`, CI, LICENSE, CLAUDE.md         | Done (CI green on PR #1)                                |
 | M1 Migrations, setup wizard, local login, roles, sessions, recovery CLI | Done (CI green on PR #2; restyled to the design system) |
-| M2 Asset types, fields, assets, CSV import, service accounts, tokens    | Built; PR open, waiting on CI and review                |
+| M2 Asset types, fields, assets, CSV import, service accounts, tokens    | Built; CI green on PR #3, waiting on review             |
 | M3 Assignment, locations, status rules, asset history                   | Not started (wait for the user)                         |
 
 Update this table when a milestone is committed.
