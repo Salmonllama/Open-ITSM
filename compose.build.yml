@@ -1,0 +1,8 @@
+# Development and CI override: build the app image from this checkout.
+#   docker compose -f compose.yml -f compose.build.yml up -d --build
+services:
+  app:
+    build:
+      context: .
+      args:
+        APP_VERSION: ${OPEN_ITSM_VERSION:-dev}
