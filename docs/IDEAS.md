@@ -13,3 +13,10 @@ says so.
 
 - **Theme choice per user.** The light/dark override is kept in the browser's `localStorage`, so
   it does not follow a technician to another computer. Storing it on the user record would.
+
+## Assets
+
+- **Downloadable CSV import template.** Bulk import accepts a CSV, but a technician has to guess
+  the expected columns and value formats. A "Download template" link on the import page could
+  serve a CSV for the chosen asset type, with the built-in and custom field columns as headers
+  and an example row, so the file is right before the first upload.
