@@ -9,7 +9,7 @@ acceptance criteria.
 
 | Milestone                                                               | State                    |
 | ----------------------------------------------------------------------- | ------------------------ |
-| M0 Scaffold, image, compose, `/healthz`, CI, LICENSE, CLAUDE.md         | Built; awaiting green CI |
+| M0 Scaffold, image, compose, `/healthz`, CI, LICENSE, CLAUDE.md         | Done (CI green on PR #1) |
 | M1 Migrations, setup wizard, local login, roles, sessions, recovery CLI | Next                     |
 
 Update this table when a milestone is committed.
