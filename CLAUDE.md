@@ -7,10 +7,10 @@ acceptance criteria.
 
 ## Status
 
-| Milestone                                                               | State |
-| ----------------------------------------------------------------------- | ----- |
-| M0 Scaffold, image, compose, `/healthz`, CI, LICENSE, CLAUDE.md         | Done  |
-| M1 Migrations, setup wizard, local login, roles, sessions, recovery CLI | Next  |
+| Milestone                                                               | State                    |
+| ----------------------------------------------------------------------- | ------------------------ |
+| M0 Scaffold, image, compose, `/healthz`, CI, LICENSE, CLAUDE.md         | Built; awaiting green CI |
+| M1 Migrations, setup wizard, local login, roles, sessions, recovery CLI | Next                     |
 
 Update this table when a milestone is committed.
 
@@ -19,7 +19,9 @@ Update this table when a milestone is committed.
 1. Build only what `docs/PRODUCT_OVERVIEW.md` and `docs/IMPLEMENTATION.md` describe. Put proposed
    extras in `docs/IDEAS.md` instead of building them.
 2. One milestone at a time. Before moving on, run `pnpm check` (lint, format, typecheck, tests)
-   and commit with a clear message.
+   and commit with a clear message. Do not start the next milestone until every "done when"
+   item of the current one is met and verified, including CI green on the milestone's pull
+   request. Locally verified is not enough.
 3. Write tests alongside the code, starting with the milestone's acceptance criterion.
 4. Keep this file current with commands, conventions and decisions so a new session can resume
    cold.
