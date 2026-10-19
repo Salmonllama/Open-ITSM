@@ -42,3 +42,26 @@ describe('apiRequest', () => {
     expect(seen[1]?.['x-csrf-token']).toBe('tok');
   });
 });
+
+describe('apiRequest with a raw body', () => {
+  it('sends the text as is and returns an accepted error status as a result', async () => {
+    const { apiRequest } = await import('./api');
+    const { importResultSchema } = await import('@open-itsm/shared');
+    let sent: RequestInit | undefined;
+    const result = { dryRun: true, rows: 1, created: 0, problems: [] };
+    const fetchImpl = (async (_url: string, init?: RequestInit) => {
+      sent = init;
+      return new Response(JSON.stringify(result), { status: 422 });
+    }) as typeof fetch;
+
+    const parsed = await apiRequest('POST', '/api/assets/import', {
+      raw: { text: 'Name\nA\n', contentType: 'text/csv' },
+      schema: importResultSchema,
+      okStatuses: [422],
+      fetchImpl,
+    });
+    expect(parsed).toEqual(result);
+    expect(sent?.body).toBe('Name\nA\n');
+    expect((sent?.headers as Record<string, string>)['content-type']).toBe('text/csv');
+  });
+});

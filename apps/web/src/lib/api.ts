@@ -1,5 +1,7 @@
 import {
   healthResponseSchema,
+  importResultSchema,
+  type ImportResult,
   sessionResponseSchema,
   setupStatusSchema,
   type HealthResponse,
@@ -31,20 +33,30 @@ type Method = 'GET' | 'POST' | 'PATCH' | 'DELETE';
 export async function apiRequest<S extends z.ZodType>(
   method: Method,
   url: string,
-  options: { body?: unknown; schema?: S; fetchImpl?: typeof fetch } = {},
+  options: {
+    body?: unknown;
+    /** A body sent as is with this content type, such as a CSV file. */
+    raw?: { text: string; contentType: string };
+    schema?: S;
+    /** Error statuses whose body still matches `schema`, returned rather than thrown. */
+    okStatuses?: number[];
+    fetchImpl?: typeof fetch;
+  } = {},
 ): Promise<z.infer<S>> {
   const headers: Record<string, string> = { accept: 'application/json' };
-  if (options.body !== undefined) headers['content-type'] = 'application/json';
+  if (options.raw) headers['content-type'] = options.raw.contentType;
+  else if (options.body !== undefined) headers['content-type'] = 'application/json';
   if (method !== 'GET' && csrfToken) headers['x-csrf-token'] = csrfToken;
 
   const res = await (options.fetchImpl ?? fetch)(url, {
     method,
     headers,
     credentials: 'same-origin',
-    body: options.body === undefined ? undefined : JSON.stringify(options.body),
+    body:
+      options.raw?.text ?? (options.body === undefined ? undefined : JSON.stringify(options.body)),
   });
 
-  if (!res.ok) {
+  if (!res.ok && !options.okStatuses?.includes(res.status)) {
     const body = (await res.json().catch(() => ({}))) as { error?: string; message?: string };
     throw new ApiError(
       res.status,
@@ -88,4 +100,14 @@ export async function fetchSession(fetchImpl?: typeof fetch): Promise<SessionRes
     }
     throw err;
   }
+}
+
+/** Checks or imports a CSV file; a file with problems comes back as a result, not an error. */
+export function importAssets(typeId: string, csv: string, dryRun: boolean): Promise<ImportResult> {
+  const params = new URLSearchParams({ typeId, dryRun: String(dryRun) });
+  return apiRequest('POST', `/api/assets/import?${params}`, {
+    raw: { text: csv, contentType: 'text/csv' },
+    schema: importResultSchema,
+    okStatuses: [422],
+  });
 }

@@ -1,6 +1,6 @@
 import { useMutation, useQueryClient, useSuspenseQuery } from '@tanstack/react-query';
 import { Link, Outlet, createRoute, redirect, useNavigate } from '@tanstack/react-router';
-import { Activity, LogOut, Users } from 'lucide-react';
+import { Activity, BookOpen, KeyRound, Laptop, LogOut, Shapes, Users } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { Logo } from '@/components/logo';
 import { ThemeSelect } from '@/components/theme-select';
@@ -52,11 +52,28 @@ function AuthedLayout() {
         <NavLink to="/" icon={<Activity strokeWidth={1.75} />}>
           Status
         </NavLink>
+        <NavLink to="/assets" exact={false} icon={<Laptop strokeWidth={1.75} />}>
+          Assets
+        </NavLink>
+        <NavLink to="/asset-types" exact={false} icon={<Shapes strokeWidth={1.75} />}>
+          Asset types
+        </NavLink>
         {session.user.role === 'admin' && (
-          <NavLink to="/admin/users" icon={<Users strokeWidth={1.75} />}>
-            Users
-          </NavLink>
+          <>
+            <NavLink to="/admin/users" icon={<Users strokeWidth={1.75} />}>
+              Users
+            </NavLink>
+            <NavLink to="/admin/service-accounts" icon={<KeyRound strokeWidth={1.75} />}>
+              Service accounts
+            </NavLink>
+          </>
         )}
+        <a href="/api/docs" className={navLinkClasses}>
+          <span aria-hidden="true" className="contents">
+            <BookOpen strokeWidth={1.75} />
+          </span>
+          API reference
+        </a>
         <div className="mt-auto flex flex-col gap-4 border-t border-line px-3 pt-4">
           <div>
             <p className="m-0 type-label">{session.user.name}</p>
@@ -82,25 +99,26 @@ function AuthedLayout() {
   );
 }
 
+const navLinkClasses = cn(
+  'flex min-h-10 items-center gap-3 rounded-md px-3 text-ink no-underline',
+  'hover:bg-surface-raised hover:text-ink [&_svg]:size-5 [&_svg]:shrink-0',
+  'aria-[current=page]:bg-pine-soft aria-[current=page]:font-semibold aria-[current=page]:text-pine',
+);
+
+/** A sidebar link; `exact={false}` keeps it selected on the pages below it. */
 function NavLink({
   to,
+  exact = true,
   icon,
   children,
 }: {
-  to: '/' | '/admin/users';
+  to: '/' | '/assets' | '/asset-types' | '/admin/users' | '/admin/service-accounts';
+  exact?: boolean;
   icon: ReactNode;
   children: ReactNode;
 }) {
   return (
-    <Link
-      to={to}
-      activeOptions={{ exact: true }}
-      className={cn(
-        'flex min-h-10 items-center gap-3 rounded-md px-3 text-ink no-underline',
-        'hover:bg-surface-raised hover:text-ink [&_svg]:size-5 [&_svg]:shrink-0',
-        'aria-[current=page]:bg-pine-soft aria-[current=page]:font-semibold aria-[current=page]:text-pine',
-      )}
-    >
+    <Link to={to} activeOptions={{ exact, includeSearch: false }} className={navLinkClasses}>
       <span aria-hidden="true" className="contents">
         {icon}
       </span>

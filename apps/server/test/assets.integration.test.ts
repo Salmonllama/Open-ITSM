@@ -237,6 +237,15 @@ describe.skipIf(!testDatabaseUrl)('asset types, assets and CSV import', () => {
         url: `/api/assets/by-number/${asset.number.toLowerCase()}`,
       });
       expect(found.json().id).toBe(asset.id);
+
+      const slashed = (
+        await createAsset(tech, { typeId: type.id, number: 'OLD/42', name: 'Legacy label' })
+      ).json();
+      const bySlash = await tech.request({
+        method: 'GET',
+        url: `/api/assets/by-number/${encodeURIComponent('old/42')}`,
+      });
+      expect(bySlash.json().id).toBe(slashed.id);
     });
 
     it('searches number, name and field values, filters, counts and pages', async () => {

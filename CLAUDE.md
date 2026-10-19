@@ -12,7 +12,8 @@ voice, logo) and the page mockups that every screen must follow.
 | ----------------------------------------------------------------------- | ------------------------------------------------------- |
 | M0 Scaffold, image, compose, `/healthz`, CI, LICENSE, CLAUDE.md         | Done (CI green on PR #1)                                |
 | M1 Migrations, setup wizard, local login, roles, sessions, recovery CLI | Done (CI green on PR #2; restyled to the design system) |
-| M2 Asset types, custom fields, asset CRUD, unique numbers, CSV import   | Next                                                    |
+| M2 Asset types, fields, assets, CSV import, service accounts, tokens    | Built; PR open, waiting on CI and review                |
+| M3 Assignment, locations, status rules, asset history                   | Not started (wait for the user)                         |
 
 Update this table when a milestone is committed.
 
@@ -77,9 +78,13 @@ apps/server       Fastify API; also serves the built web UI from WEB_ROOT
   src/config.ts   env parsing with zod; errors never echo values
   src/health.ts   GET /healthz (app, database, queue; 503 when any is down)
   src/db/         schema.ts (Drizzle tables), client.ts (pool, db, runMigrations)
-  src/auth/       password (argon2id), sessions, setup token, http (cookie, CSRF, requireRole)
-  src/routes/     setup, auth (login/logout/session), users (admin only)
-  src/audit.ts    append-only audit log writer
+  src/logging.ts  pino options; scrubs anything shaped like a token from URLs
+  src/auth/       password (argon2id), sessions, setup token, tokens (API tokens, rate counters),
+                  http (cookie, bearer, CSRF, deny-by-default access check, token audit)
+  src/assets/     fields.ts (field keys, value validation, CSV cells), numbers.ts (next numbers)
+  src/routes/     setup, auth, users and service-accounts (admin only), asset-types, assets,
+                  asset-import; deps.ts holds RouteDeps and the ADMIN_ONLY/ASSETS_* access presets
+  src/audit.ts    append-only audit log writer (actor is a user or a service account)
   src/recovery.ts recovery commands; src/cli.ts is the `itsm` entrypoint in the image
   drizzle/        generated SQL migrations, applied at startup in one transaction
   test/           vitest; *.integration.test.ts need TEST_DATABASE_URL (each file gets its own DB)
@@ -87,10 +92,15 @@ apps/web          React + Vite + TanStack Router/Query + Tailwind v4
   src/index.css   design-system tokens (light, dark, OS-dark), Tailwind colour mappings, type-* styles
   src/components/ ui/ (Button, Input/Select/Label, Card/ErrorMessage, StatusBadge, Table), FormField,
                   PageHeader, ConfirmDialog, Logo, AuthLayout, ThemeSelect
-  src/routes/     setup, login, authed layout (sidebar shell; redirects to setup/login), index, admin-users
-  src/lib/        api.ts (fetch wrapper, CSRF header), queries.ts, theme.ts, roles.ts
+  src/routes/     setup, login, authed layout (sidebar shell; redirects to setup/login), index,
+                  assets (list), asset-new, asset-view (view + edit), asset-import, asset-types
+                  (list + one type), admin-users, admin-service-accounts
+  src/components/asset-form.tsx  number, name, status and the type's custom fields
+  src/lib/        api.ts (fetch wrapper, CSRF header, CSV import), queries.ts, assets.ts (status
+                  tones, date and field formatting), theme.ts, roles.ts
   public/brand/   logo SVGs from the design system (lockup, reversed, mark, favicon, app icon)
-packages/shared   zod schemas and types shared by server and web
+packages/shared   zod schemas and types shared by server and web (auth, assets, tokens)
+docs/api.md       operator notes for scripts: tokens, PowerShell and curl examples
 compose.yml       app + db + caddy; the file operators download (Caddyfile is inline)
 compose.build.yml override that builds the app image from the checkout
 Dockerfile        multi-stage; runtime runs as `node`, files root-owned
@@ -198,6 +208,39 @@ Dockerfile        multi-stage; runtime runs as `node`, files root-owned
 - **New dependencies (design pass):** `@fontsource/atkinson-hyperlegible-next` and
   `@fontsource/atkinson-hyperlegible-mono` (the brand fonts, self-hosted) and `lucide-react`
   (the design system's icon set).
+
+- **Route access (M2):** deny-by-default. Every route sets `config.access`: `PUBLIC`,
+  `{ roles }` or `{ roles, scopes }` (presets in `routes/deps.ts`). A route without `scopes`
+  can never be reached with a token; `test/app.test.ts` fails if a route declares nothing. The
+  OpenAPI viewer and JSON are for signed-in staff only. No CORS headers are sent.
+- **API tokens (M2):** belong to service accounts (admin-managed, cannot sign in). Format
+  `oitsm_<16 hex id>_<64 hex secret>`; only SHA-256 of the secret is stored, compared in constant
+  time; shown once. Expiry required: default 90 days, max 365, flagged within 14 days (user's
+  choice). Scopes `assets:read`/`assets:write` now, ticket scopes in M6; `write` does not imply
+  `read`. The asset scopes cover asset types and fields too (user's choice). Bearer header only:
+  a token in the query or body is refused (400) and audited. Cookie plus token is refused (400).
+  Token requests skip CSRF. Limits (in memory): 300 requests per token per minute; 10 invalid
+  tokens per IP per 15 minutes, after which the IP gets 429 and attempts are no longer audited
+  (so a flood cannot fill the log). Every state-changing token request is audited
+  (`token.request`, written in onResponse). `last_used_at` is touched at most once a minute.
+- **Service accounts** can be deleted only while nothing references them (409 `has_history`);
+  otherwise disable them.
+- **Who manages asset types (M2, user's choice):** administrators and technicians.
+- **Asset fields (M2, user's choice):** number, name, status, type and custom fields. Status is
+  free to choose (default In stock); status rules, assignment and location are M3. Asset numbers
+  are `PREFIX-000123`, unique ignoring case across all types; a blank number takes the type's
+  next number, skipping numbers already taken (the type row is locked). Numbers may contain `/`,
+  so web URLs use the asset ID. Custom field values are JSONB keyed by a slug of the label;
+  kinds are text, number, date (YYYY-MM-DD), select and boolean, and a field's kind never
+  changes. Removing a choice that assets still use is refused.
+- **Deleting assets (M2, user's choice):** allowed with a confirmation naming the asset and an
+  audit record. Once history exists (M3), assets are retired instead of deleted.
+- **CSV import:** comma-separated, UTF-8 (BOM allowed), header row names columns (`Number`,
+  `Name`, `Status` and field labels or keys, any case). All-or-nothing in one transaction, at
+  most 5,000 rows; every problem is reported with its line and column (HTTP 422); `dryRun=true`
+  only checks. The web page always checks first, then imports.
+- **New dependency in M2:** `csv-parse` (server). Hand-rolled CSV parsing gets quoted commas,
+  newlines in cells and BOMs wrong; csv-parse is the standard, dependency-free parser.
 
 ## Open questions
 

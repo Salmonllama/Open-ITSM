@@ -1,6 +1,12 @@
 import { QueryClient } from '@tanstack/react-query';
 import { createRouter } from '@tanstack/react-router';
+import { adminServiceAccountsRoute } from './routes/admin-service-accounts';
 import { adminUsersRoute } from './routes/admin-users';
+import { assetImportRoute } from './routes/asset-import';
+import { assetNewRoute } from './routes/asset-new';
+import { assetTypeRoute, assetTypesRoute } from './routes/asset-types';
+import { assetEditRoute, assetViewRoute } from './routes/asset-view';
+import { assetsRoute } from './routes/assets';
 import { authedRoute } from './routes/authed';
 import { indexRoute } from './routes/index';
 import { loginRoute } from './routes/login';
@@ -14,7 +20,18 @@ export const queryClient = new QueryClient({
 const routeTree = rootRoute.addChildren([
   setupRoute,
   loginRoute,
-  authedRoute.addChildren([indexRoute, adminUsersRoute]),
+  authedRoute.addChildren([
+    indexRoute,
+    assetsRoute,
+    assetNewRoute,
+    assetImportRoute,
+    assetViewRoute,
+    assetEditRoute,
+    assetTypesRoute,
+    assetTypeRoute,
+    adminUsersRoute,
+    adminServiceAccountsRoute,
+  ]),
 ]);
 
 export const router = createRouter({ routeTree, context: { queryClient } });
