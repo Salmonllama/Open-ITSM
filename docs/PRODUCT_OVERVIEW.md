@@ -1,10 +1,10 @@
-# Small-Team ITSM: Product Overview (v1 Scope)
+# Open ITSM: Product Overview (v1 Scope)
 
-Revised 2026-10-18.
+Revised 2026-10-19.
 
 ## Purpose and target user
 
-A free, open-source, self-hosted IT service management tool for small internal IT teams (roughly 1 to 10 technicians) that need to track their hardware and handle support requests without the cost and complexity of enterprise ITSM suites.
+Open ITSM is a free, open-source, self-hosted IT service management tool for small internal IT teams (roughly 1 to 10 technicians) that need to track their hardware and handle support requests without the cost and complexity of enterprise ITSM suites.
 
 v1 does two things well: **asset management** (know what you own, where it is, and what state it is in) and **support management** (receive, work and close tickets, mostly over email). Everything else waits.
 
@@ -56,10 +56,16 @@ v1 is self-hosted: each team runs the application and its database on its own se
 - Backup and restore of the database
 - Free and open source under GPL v3 (tentative), so installing and updating cost nothing; paid support contracts are optional, and hosted SaaS is a possible later option
 
+## Brand and design
+
+Branding is decided and summarized in `docs/open-itsm-brand.md`; the full source of truth is the Open ITSM design system artifact linked there. In short: pine green brand colour with light and dark themes, Atkinson Hyperlegible Next and Mono fonts, Lucide icons, and the "Scan and check" logo.
+
 ## Decisions and open questions
 
 **Decided**
 
+- Name: Open ITSM
+- Brand: calm and dependable; "Scan and check" logo; pine green palette; Atkinson Hyperlegible fonts; Lucide icons (see `claude/open-itsm-brand.md`)
 - Target team size: 1 to 10 technicians
 - Email: Microsoft 365 first; Google Workspace and generic IMAP/SMTP in later versions
 - End users: optional dashboard in v1; knowledge base and suggested articles later
@@ -72,3 +78,4 @@ v1 is self-hosted: each team runs the application and its database on its own se
 
 - Confirm GPL v3 before the first release; revisit AGPL if a hosted SaaS offering makes network-use protection matter
 - How is a local administrator recovered if SSO is misconfigured and the admin password is lost?
+- Check that "Open ITSM" is clear to use as a product name and that a matching domain and GitHub organization are available
