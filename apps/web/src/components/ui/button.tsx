@@ -1,29 +1,41 @@
 import type { ButtonHTMLAttributes } from 'react';
 import { cn } from '@/lib/utils';
 
-type Variant = 'default' | 'outline' | 'ghost' | 'destructive';
+type Variant = 'primary' | 'secondary' | 'ghost' | 'danger';
+type Size = 'md' | 'sm';
 
 const variants: Record<Variant, string> = {
-  default: 'bg-primary text-primary-foreground hover:bg-primary/90',
-  outline: 'border bg-background hover:bg-muted',
-  ghost: 'hover:bg-muted',
-  destructive: 'bg-destructive text-white hover:bg-destructive/90',
+  primary: 'border-pine bg-pine text-on-pine hover:border-pine-strong hover:bg-pine-strong',
+  secondary: 'border-line-strong bg-surface-raised text-ink hover:bg-surface-sunken',
+  ghost: 'border-transparent bg-transparent text-pine hover:bg-pine-soft',
+  danger: 'border-danger bg-danger text-on-danger hover:brightness-[.92]',
 };
 
+const sizes: Record<Size, string> = {
+  md: 'h-9 px-4',
+  sm: 'h-7 px-3',
+};
+
+/**
+ * Design-system button. One primary per view; a danger button needs a confirmation that names
+ * the thing it acts on. Icons inside are 16px Lucide icons.
+ */
 export function Button({
   className,
-  variant = 'default',
+  variant = 'secondary',
+  size = 'md',
   type = 'button',
   ...props
-}: ButtonHTMLAttributes<HTMLButtonElement> & { variant?: Variant }) {
+}: ButtonHTMLAttributes<HTMLButtonElement> & { variant?: Variant; size?: Size }) {
   return (
     <button
       type={type}
       className={cn(
-        'inline-flex h-9 items-center justify-center gap-2 rounded-md px-4 text-sm font-medium transition-colors',
-        'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary',
-        'disabled:pointer-events-none disabled:opacity-50',
+        'inline-flex shrink-0 cursor-pointer items-center justify-center gap-2 rounded-md border type-label whitespace-nowrap',
+        'focus-visible:shadow-focus focus-visible:outline-2 focus-visible:outline-transparent',
+        'disabled:cursor-not-allowed disabled:opacity-50 [&_svg]:size-4 [&_svg]:shrink-0',
         variants[variant],
+        sizes[size],
         className,
       )}
       {...props}

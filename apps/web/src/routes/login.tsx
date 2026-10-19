@@ -3,9 +3,10 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { createRoute, redirect, useNavigate } from '@tanstack/react-router';
 import type { FormEvent } from 'react';
 import { z } from 'zod';
+import { AuthLayout } from '@/components/auth-layout';
 import { FormField } from '@/components/form-field';
 import { Button } from '@/components/ui/button';
-import { Card, ErrorMessage } from '@/components/ui/card';
+import { ErrorMessage } from '@/components/ui/card';
 import { apiRequest } from '@/lib/api';
 import { sessionQuery, setupStatusQuery, storeSession } from '@/lib/queries';
 import { rootRoute } from './root';
@@ -49,24 +50,21 @@ function LoginPage() {
   }
 
   return (
-    <main className="mx-auto max-w-sm px-4 py-16">
-      <Card className="space-y-6">
-        <h1 className="text-xl font-semibold">Sign in to Open ITSM</h1>
-        <form className="space-y-4" onSubmit={onSubmit}>
-          <FormField label="Email" name="email" type="email" required autoComplete="username" />
-          <FormField
-            label="Password"
-            name="password"
-            type="password"
-            required
-            autoComplete="current-password"
-          />
-          <ErrorMessage error={login.error} />
-          <Button type="submit" className="w-full" disabled={login.isPending}>
-            {login.isPending ? 'Signing in…' : 'Sign in'}
-          </Button>
-        </form>
-      </Card>
-    </main>
+    <AuthLayout title="Sign in">
+      <form className="flex flex-col gap-4" onSubmit={onSubmit}>
+        <FormField label="Email" name="email" type="email" required autoComplete="username" />
+        <FormField
+          label="Password"
+          name="password"
+          type="password"
+          required
+          autoComplete="current-password"
+        />
+        <ErrorMessage error={login.error} />
+        <Button type="submit" variant="primary" className="w-full" disabled={login.isPending}>
+          {login.isPending ? 'Signing in…' : 'Sign in'}
+        </Button>
+      </form>
+    </AuthLayout>
   );
 }

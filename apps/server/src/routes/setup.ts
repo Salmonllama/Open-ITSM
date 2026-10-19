@@ -73,14 +73,17 @@ export function registerSetupRoutes(app: FastifyInstance, { db, sessions, setupT
       });
 
       if (outcome === 'complete') {
-        return reply
-          .code(409)
-          .send({ error: 'setup_complete', message: 'Setup has already been completed' });
+        return reply.code(409).send({
+          error: 'setup_complete',
+          message: 'Setup is already finished. Sign in instead.',
+        });
       }
       if (outcome === 'bad_token') {
-        return reply
-          .code(403)
-          .send({ error: 'bad_token', message: 'The setup token is not valid' });
+        return reply.code(403).send({
+          error: 'bad_token',
+          message:
+            'That setup token does not match. Copy it again from the app log; restarting the app issues a new one.',
+        });
       }
 
       setupToken.clear();

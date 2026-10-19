@@ -58,20 +58,25 @@ export async function buildApp(options: AppOptions): Promise<FastifyInstance> {
       const field = first?.instancePath.replace(/^\//, '').replaceAll('/', '.');
       const message = first
         ? `${field ? `${field}: ` : ''}${first.message ?? 'is invalid'}`
-        : 'Invalid request';
+        : 'The request was not valid. Check the form and try again.';
       return reply.code(400).send({ error: 'validation', message });
     }
     const status = err.statusCode ?? 500;
     if (status === 429) {
-      return reply
-        .code(429)
-        .send({ error: 'rate_limited', message: 'Too many requests; slow down' });
+      return reply.code(429).send({
+        error: 'rate_limited',
+        message: 'Too many requests in a short time. Wait a minute, then try again.',
+      });
     }
     if (status < 500) {
       return reply.code(status).send({ error: err.code ?? 'bad_request', message: err.message });
     }
     request.log.error({ err }, 'unhandled error');
-    return reply.code(500).send({ error: 'internal', message: 'Something went wrong' });
+    return reply.code(500).send({
+      error: 'internal',
+      message:
+        'Something went wrong on the server. Try again; if it keeps happening, check the app log.',
+    });
   });
 
   await app.register(fastifyRateLimit, { global: false });
@@ -99,7 +104,9 @@ export async function buildApp(options: AppOptions): Promise<FastifyInstance> {
       // Client-side routes are resolved by the web UI.
       return reply.type('text/html').sendFile('index.html');
     }
-    return reply.code(404).send({ error: 'not_found', message: 'Route not found' });
+    return reply
+      .code(404)
+      .send({ error: 'not_found', message: 'There is no API route at this address.' });
   });
 
   return app;

@@ -7,13 +7,19 @@ import {
 } from '@open-itsm/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { createRoute, redirect } from '@tanstack/react-router';
-import { useId, useState, type FormEvent } from 'react';
+import { UserPlus } from 'lucide-react';
+import { Fragment, useId, useState, type FormEvent } from 'react';
+import { ConfirmDialog } from '@/components/confirm-dialog';
 import { FormField } from '@/components/form-field';
+import { PageHeader } from '@/components/page-header';
 import { Button } from '@/components/ui/button';
 import { Card, ErrorMessage } from '@/components/ui/card';
 import { Label, Select } from '@/components/ui/input';
+import { StatusBadge } from '@/components/ui/status-badge';
+import { Table, Td, Th } from '@/components/ui/table';
 import { apiRequest } from '@/lib/api';
 import { sessionQuery, usersQuery } from '@/lib/queries';
+import { roleLabels } from '@/lib/roles';
 import { authedRoute } from './authed';
 
 export const adminUsersRoute = createRoute({
@@ -28,38 +34,63 @@ export const adminUsersRoute = createRoute({
 function UsersPage() {
   const { data: users, error, isPending } = useQuery(usersQuery);
   const { data: session } = useQuery(sessionQuery);
+  const [adding, setAdding] = useState(false);
 
   return (
-    <section className="space-y-6">
-      <h1 className="text-2xl font-semibold">Users</h1>
-      <CreateUserForm />
-      {isPending && <p className="text-muted-foreground">Loading…</p>}
+    <>
+      <PageHeader
+        title="Users"
+        caption={
+          users &&
+          `${users.length} ${users.length === 1 ? 'user' : 'users'}. Administrators and technicians sign in with a password.`
+        }
+        actions={
+          !adding && (
+            <Button variant="primary" onClick={() => setAdding(true)}>
+              <UserPlus aria-hidden="true" strokeWidth={1.75} />
+              Add user
+            </Button>
+          )
+        }
+      />
+      {adding && <CreateUserForm onDone={() => setAdding(false)} />}
+      {isPending && <p className="m-0 text-ink-muted">Loading users…</p>}
       <ErrorMessage error={error} />
       {users && (
-        <ul className="divide-y rounded-lg border bg-card">
-          {users.map((user) => (
-            <UserRow key={user.id} user={user} isSelf={user.id === session?.user.id} />
-          ))}
-        </ul>
+        <Table>
+          <thead>
+            <tr>
+              <Th>Name</Th>
+              <Th>Email</Th>
+              <Th>Role</Th>
+              <Th>Status</Th>
+              <Th>
+                <span className="sr-only">Actions</span>
+              </Th>
+            </tr>
+          </thead>
+          <tbody>
+            {users.map((user) => (
+              <UserRow key={user.id} user={user} isSelf={user.id === session?.user.id} />
+            ))}
+          </tbody>
+        </Table>
       )}
-    </section>
+    </>
   );
 }
 
-function CreateUserForm() {
+function CreateUserForm({ onDone }: { onDone: () => void }) {
   const queryClient = useQueryClient();
   const roleId = useId();
-  const [open, setOpen] = useState(false);
   const create = useMutation({
     mutationFn: (body: CreateUserRequest) =>
       apiRequest('POST', '/api/users', { body, schema: adminUserSchema }),
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: usersQuery.queryKey });
-      setOpen(false);
+      onDone();
     },
   });
-
-  if (!open) return <Button onClick={() => setOpen(true)}>Add user</Button>;
 
   function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -74,33 +105,34 @@ function CreateUserForm() {
 
   return (
     <Card>
-      <form className="grid gap-4 sm:grid-cols-2" onSubmit={onSubmit}>
-        <FormField label="Name" name="name" required />
-        <FormField label="Email" name="email" type="email" required />
-        <div className="space-y-1.5">
-          <Label htmlFor={roleId}>Role</Label>
-          <Select id={roleId} name="role" defaultValue="technician">
-            <option value="technician">Technician</option>
-            <option value="admin">Administrator</option>
-          </Select>
+      <form className="flex flex-col gap-4" onSubmit={onSubmit}>
+        <h2 className="m-0 type-heading">Add user</h2>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <FormField label="Name" name="name" required autoComplete="off" />
+          <FormField label="Email" name="email" type="email" required autoComplete="off" />
+          <div className="flex flex-col gap-2">
+            <Label htmlFor={roleId}>Role</Label>
+            <Select id={roleId} name="role" defaultValue="technician">
+              <option value="technician">{roleLabels.technician}</option>
+              <option value="admin">{roleLabels.admin}</option>
+            </Select>
+          </div>
+          <FormField
+            label="Initial password"
+            name="password"
+            type="password"
+            required
+            minLength={PASSWORD_MIN_LENGTH}
+            autoComplete="new-password"
+            hint={`At least ${PASSWORD_MIN_LENGTH} characters. Give it to them in person or over a secure channel.`}
+          />
         </div>
-        <FormField
-          label="Initial password"
-          name="password"
-          type="password"
-          required
-          minLength={PASSWORD_MIN_LENGTH}
-          autoComplete="new-password"
-          hint={`At least ${PASSWORD_MIN_LENGTH} characters. Share it with the user securely.`}
-        />
-        <div className="flex gap-2 sm:col-span-2">
-          <Button type="submit" disabled={create.isPending}>
-            Create user
+        <ErrorMessage error={create.error} />
+        <div className="flex flex-wrap gap-2">
+          <Button type="submit" variant="primary" disabled={create.isPending}>
+            Add user
           </Button>
-          <Button variant="ghost" onClick={() => setOpen(false)}>
-            Cancel
-          </Button>
-          <ErrorMessage error={create.error} />
+          <Button onClick={onDone}>Cancel</Button>
         </div>
       </form>
     </Card>
@@ -110,10 +142,12 @@ function CreateUserForm() {
 function UserRow({ user, isSelf }: { user: AdminUser; isSelf: boolean }) {
   const queryClient = useQueryClient();
   const [settingPassword, setSettingPassword] = useState(false);
+  const [confirmingDisable, setConfirmingDisable] = useState(false);
   const update = useMutation({
     mutationFn: (body: UpdateUserRequest) =>
       apiRequest('PATCH', `/api/users/${user.id}`, { body, schema: adminUserSchema }),
     onSettled: () => queryClient.invalidateQueries({ queryKey: usersQuery.queryKey }),
+    onSuccess: () => setConfirmingDisable(false),
   });
   const setPassword = useMutation({
     mutationFn: (password: string) =>
@@ -129,62 +163,117 @@ function UserRow({ user, isSelf }: { user: AdminUser; isSelf: boolean }) {
   const local = user.role !== 'end_user';
 
   return (
-    <li className="space-y-3 px-4 py-3">
-      <div className="flex flex-wrap items-center gap-3">
-        <div className="min-w-48 flex-1">
-          <p className="font-medium">
-            {user.name} {isSelf && <span className="text-muted-foreground">(you)</span>}
-          </p>
-          <p className="text-sm text-muted-foreground">{user.email}</p>
-        </div>
-        {user.disabled && <span className="text-sm text-destructive">Disabled</span>}
-        {local && (
-          <Select
-            aria-label={`Role for ${user.name}`}
-            className="w-40"
-            value={user.role}
-            disabled={update.isPending}
-            onChange={(e) =>
-              update.mutate({ role: e.target.value === 'admin' ? 'admin' : 'technician' })
-            }
-          >
-            <option value="technician">Technician</option>
-            <option value="admin">Administrator</option>
-          </Select>
-        )}
-        {local && (
-          <Button variant="outline" onClick={() => setSettingPassword((v) => !v)}>
-            Set password
-          </Button>
-        )}
-        <Button
-          variant={user.disabled ? 'outline' : 'destructive'}
-          disabled={update.isPending}
-          onClick={() => update.mutate({ disabled: !user.disabled })}
-        >
-          {user.disabled ? 'Enable' : 'Disable'}
-        </Button>
-      </div>
-      <ErrorMessage error={update.error} />
-      {settingPassword && (
-        <form className="flex flex-wrap items-end gap-2" onSubmit={onPasswordSubmit}>
-          <div className="min-w-64 flex-1">
-            <FormField
-              label={`New password for ${user.name}`}
-              name="password"
-              type="password"
-              required
-              minLength={PASSWORD_MIN_LENGTH}
-              autoComplete="new-password"
-              hint="Signs them out everywhere and clears any lockout."
-            />
+    <Fragment>
+      <tr>
+        <Td>
+          {user.name}
+          {isSelf && <span className="type-caption text-ink-muted"> (you)</span>}
+        </Td>
+        <Td>{user.email}</Td>
+        <Td>
+          {local ? (
+            <Select
+              aria-label={`Role for ${user.name}`}
+              className="h-7 w-40"
+              value={user.role}
+              disabled={update.isPending}
+              onChange={(e) =>
+                update.mutate({ role: e.target.value === 'admin' ? 'admin' : 'technician' })
+              }
+            >
+              <option value="technician">{roleLabels.technician}</option>
+              <option value="admin">{roleLabels.admin}</option>
+            </Select>
+          ) : (
+            roleLabels[user.role]
+          )}
+        </Td>
+        <Td>
+          {user.disabled ? (
+            <StatusBadge tone="neutral">Disabled</StatusBadge>
+          ) : (
+            <StatusBadge tone="success">Active</StatusBadge>
+          )}
+        </Td>
+        <Td>
+          <div className="flex justify-end gap-2">
+            {local && (
+              <Button
+                size="sm"
+                aria-expanded={settingPassword}
+                onClick={() => setSettingPassword((v) => !v)}
+              >
+                Set password
+              </Button>
+            )}
+            {user.disabled ? (
+              <Button
+                size="sm"
+                disabled={update.isPending}
+                onClick={() => update.mutate({ disabled: false })}
+              >
+                Enable
+              </Button>
+            ) : (
+              <Button size="sm" onClick={() => setConfirmingDisable(true)}>
+                Disable
+              </Button>
+            )}
           </div>
-          <Button type="submit" disabled={setPassword.isPending}>
-            Save
-          </Button>
-          <ErrorMessage error={setPassword.error} />
-        </form>
+          <ConfirmDialog
+            open={confirmingDisable}
+            title={`Disable ${user.name}?`}
+            confirmLabel="Disable"
+            danger
+            pending={update.isPending}
+            onConfirm={() => update.mutate({ disabled: true })}
+            onCancel={() => {
+              setConfirmingDisable(false);
+              update.reset();
+            }}
+          >
+            <p className="m-0">
+              They are signed out everywhere and cannot sign in until you enable them again.
+            </p>
+            {confirmingDisable && <ErrorMessage error={update.error} />}
+          </ConfirmDialog>
+        </Td>
+      </tr>
+      {update.error && !confirmingDisable && (
+        <tr>
+          <td colSpan={5} className="px-4 pb-3">
+            <ErrorMessage error={update.error} />
+          </td>
+        </tr>
       )}
-    </li>
+      {settingPassword && (
+        <tr>
+          <td colSpan={5} className="bg-surface px-4 py-4">
+            <form className="flex flex-wrap items-end gap-2" onSubmit={onPasswordSubmit}>
+              <div className="min-w-64 flex-1">
+                <FormField
+                  label={`New password for ${user.name}`}
+                  name="password"
+                  type="password"
+                  required
+                  minLength={PASSWORD_MIN_LENGTH}
+                  autoComplete="new-password"
+                  hint={`At least ${PASSWORD_MIN_LENGTH} characters. This signs them out everywhere and clears any lockout.`}
+                />
+              </div>
+              <Button type="submit" disabled={setPassword.isPending}>
+                Save password
+              </Button>
+              <Button onClick={() => setSettingPassword(false)}>Cancel</Button>
+            </form>
+            {setPassword.error && (
+              <div className="mt-2">
+                <ErrorMessage error={setPassword.error} />
+              </div>
+            )}
+          </td>
+        </tr>
+      )}
+    </Fragment>
   );
 }

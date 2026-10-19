@@ -1,17 +1,18 @@
 # CLAUDE.md
 
 Open ITSM is a free, self-hosted ITSM (asset management and email ticketing) for IT teams of 1 to
-10 technicians. Read both before starting work: `docs/PRODUCT_OVERVIEW.md` defines v1 scope (and
+10 technicians. Read these before starting work: `docs/PRODUCT_OVERVIEW.md` defines v1 scope (and
 what is out of scope); `docs/IMPLEMENTATION.md` fixes the stack, data model, build order and
-acceptance criteria.
+acceptance criteria; `docs/open-itsm-brand.md` links the design system (tokens, components,
+voice, logo) and the page mockups that every screen must follow.
 
 ## Status
 
-| Milestone                                                               | State                    |
-| ----------------------------------------------------------------------- | ------------------------ |
-| M0 Scaffold, image, compose, `/healthz`, CI, LICENSE, CLAUDE.md         | Done (CI green on PR #1) |
-| M1 Migrations, setup wizard, local login, roles, sessions, recovery CLI | Done (CI green on PR #2) |
-| M2 Asset types, custom fields, asset CRUD, unique numbers, CSV import   | Next                     |
+| Milestone                                                               | State                                                   |
+| ----------------------------------------------------------------------- | ------------------------------------------------------- |
+| M0 Scaffold, image, compose, `/healthz`, CI, LICENSE, CLAUDE.md         | Done (CI green on PR #1)                                |
+| M1 Migrations, setup wizard, local login, roles, sessions, recovery CLI | Done (CI green on PR #2; restyled to the design system) |
+| M2 Asset types, custom fields, asset CRUD, unique numbers, CSV import   | Next                                                    |
 
 Update this table when a milestone is committed.
 
@@ -82,9 +83,13 @@ apps/server       Fastify API; also serves the built web UI from WEB_ROOT
   src/recovery.ts recovery commands; src/cli.ts is the `itsm` entrypoint in the image
   drizzle/        generated SQL migrations, applied at startup in one transaction
   test/           vitest; *.integration.test.ts need TEST_DATABASE_URL (each file gets its own DB)
-apps/web          React + Vite + TanStack Router/Query + Tailwind v4, shadcn/ui-ready
-  src/routes/     setup, login, authed layout (redirects to setup/login), index, admin-users
-  src/lib/        api.ts (fetch wrapper, CSRF header), queries.ts (TanStack Query options)
+apps/web          React + Vite + TanStack Router/Query + Tailwind v4
+  src/index.css   design-system tokens (light, dark, OS-dark), Tailwind colour mappings, type-* styles
+  src/components/ ui/ (Button, Input/Select/Label, Card/ErrorMessage, StatusBadge, Table), FormField,
+                  PageHeader, ConfirmDialog, Logo, AuthLayout, ThemeSelect
+  src/routes/     setup, login, authed layout (sidebar shell; redirects to setup/login), index, admin-users
+  src/lib/        api.ts (fetch wrapper, CSRF header), queries.ts, theme.ts, roles.ts
+  public/brand/   logo SVGs from the design system (lockup, reversed, mark, favicon, app icon)
 packages/shared   zod schemas and types shared by server and web
 compose.yml       app + db + caddy; the file operators download (Caddyfile is inline)
 compose.build.yml override that builds the app image from the checkout
@@ -105,8 +110,9 @@ Dockerfile        multi-stage; runtime runs as `node`, files root-owned
   so client-side routes work.
 - Logs are pino JSON to stdout; `authorization`, `cookie` and `set-cookie` are redacted.
 - Dependencies are pinned to exact versions (`.npmrc` `save-exact=true`) and by the lockfile.
-- Prettier: 100 columns, single quotes, trailing commas. `docs/IMPLEMENTATION.md` is excluded
-  from formatting because it is maintained by hand.
+- Prettier: 100 columns, single quotes, trailing commas. `docs/IMPLEMENTATION.md`,
+  `docs/PRODUCT_OVERVIEW.md` and `docs/open-itsm-brand.md` are excluded from formatting because
+  they are maintained by hand.
 
 ## Decisions
 
@@ -166,10 +172,30 @@ Dockerfile        multi-stage; runtime runs as `node`, files root-owned
   command lands with Entra ID in M9.
 - **New dependencies in M1:** `@fastify/cookie` (Fastify has no cookie parsing),
   `@fastify/rate-limit` (per-IP throttling) and `drizzle-kit` (dev, generates migrations).
-- **shadcn/ui:** `apps/web/components.json`, `src/lib/utils.ts` (`cn`) and theme tokens in
-  `src/index.css` are in place. `src/components/ui` holds small hand-written Button, Input,
-  Select, Label and Card components in the shadcn style (no Radix needed yet); switch to the
-  shadcn CLI versions when a screen needs dialogs, menus or similar.
+- **Design system (Oct 2026):** `docs/open-itsm-brand.md` links the source of truth; where the
+  mockups and the design system disagree, the design system wins. Tokens live in
+  `src/index.css` as CSS variables (light default; dark under `[data-theme='dark']` and under
+  `prefers-color-scheme: dark` unless `data-theme='light'`) and map to Tailwind colours
+  (`bg-surface-raised`, `text-ink-muted`, `border-line-strong`, `bg-pine`, `text-danger`, ...).
+  Type styles are `type-display|title|heading|body|label|caption|id|code` (named `type-*`, not
+  `text-*`, so tailwind-merge in `cn` does not drop them next to a colour class). Radius
+  sm/md/lg = 4/6/10 px. Components in `src/components/ui` are hand-written to match the design
+  system's reference components (Button primary/secondary/ghost/danger and sm; StatusBadge with
+  word + 12px shape + colour; TextField with hint/error and `aria-invalid`). One primary button
+  per view; a danger action confirms in a `ConfirmDialog` (native `<dialog>`) that names the
+  thing. Copy follows the design system's voice: what happened, then what to do; sentence case;
+  "you", never "we"; no exclamation marks. shadcn's `components.json` stays for later CLI use.
+- **Shell:** sidebar nav from the mockups (lockup at 28px, Lucide icons at 20px, selected item
+  pine-soft with `aria-current="page"`, user name, role and Sign out in the footer); main area
+  with 32px padding. Only pages that exist get nav items (Status, and Users for admins).
+- **Theme:** follows the OS by default; the sidebar's Theme select overrides it per browser
+  (`localStorage` key `open-itsm-theme`, applied in `main.tsx` before render). Storing it per user
+  is in `docs/IDEAS.md`.
+- **Fonts:** Atkinson Hyperlegible Next (400/600/700) and Mono (400/500) are self-hosted from
+  `@fontsource/*` packages, never Google Fonts, so installs need no outside requests.
+- **New dependencies (design pass):** `@fontsource/atkinson-hyperlegible-next` and
+  `@fontsource/atkinson-hyperlegible-mono` (the brand fonts, self-hosted) and `lucide-react`
+  (the design system's icon set).
 
 ## Open questions
 

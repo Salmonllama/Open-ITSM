@@ -49,7 +49,7 @@ export async function apiRequest<S extends z.ZodType>(
     throw new ApiError(
       res.status,
       body.error ?? 'http_error',
-      body.message ?? `HTTP ${res.status}`,
+      body.message ?? `The server returned an error (HTTP ${res.status}). Try again in a moment.`,
     );
   }
   if (res.status === 204 || !options.schema) return undefined as z.infer<S>;
@@ -63,7 +63,7 @@ export async function apiRequest<S extends z.ZodType>(
 export async function fetchHealth(fetchImpl: typeof fetch = fetch): Promise<HealthResponse> {
   const res = await fetchImpl('/healthz', { headers: { accept: 'application/json' } });
   if (!res.ok && res.status !== 503) {
-    throw new Error(`Health check failed with HTTP ${res.status}`);
+    throw new Error(`HTTP ${res.status}`);
   }
   return healthResponseSchema.parse(await res.json());
 }

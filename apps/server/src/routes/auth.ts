@@ -11,10 +11,14 @@ import { AUTH_RATE_LIMIT, type RouteDeps } from './deps.js';
 export const LOCKOUT_THRESHOLD = 5;
 export const LOCKOUT_MS = 15 * 60 * 1000;
 
-const INVALID = { error: 'invalid_credentials', message: 'Invalid email or password' } as const;
+const INVALID = {
+  error: 'invalid_credentials',
+  message: 'That email and password do not match an account. Check them and try again.',
+} as const;
 const LOCKED = {
   error: 'locked',
-  message: 'Too many failed sign-in attempts. Try again in a few minutes.',
+  message:
+    'Sign-in is paused for this account after too many failed attempts. Wait 15 minutes, then try again.',
 } as const;
 
 export function registerAuthRoutes(app: FastifyInstance, { db, sessions }: RouteDeps) {
@@ -121,7 +125,9 @@ export function registerAuthRoutes(app: FastifyInstance, { db, sessions }: Route
     },
     async (request, reply) => {
       if (!request.session) {
-        return reply.code(401).send({ error: 'unauthenticated', message: 'Not signed in' });
+        return reply
+          .code(401)
+          .send({ error: 'unauthenticated', message: 'You are not signed in.' });
       }
       return { user: request.session.user, csrfToken: request.session.csrfToken };
     },

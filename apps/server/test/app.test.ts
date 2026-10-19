@@ -90,6 +90,9 @@ describe('web UI serving', () => {
       headers: { accept: 'text/html' },
     });
     expect(res.statusCode).toBe(404);
-    expect(res.json()).toEqual({ error: 'not_found', message: 'Route not found' });
+    expect(res.json()).toEqual({
+      error: 'not_found',
+      message: 'There is no API route at this address.',
+    });
   });
 });

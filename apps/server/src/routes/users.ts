@@ -18,10 +18,14 @@ import { USERS_LOCK_KEY, type RouteDeps } from './deps.js';
 
 const idParams = z.object({ id: z.uuid() });
 
-const NOT_FOUND = { error: 'not_found', message: 'User not found' } as const;
+const NOT_FOUND = {
+  error: 'not_found',
+  message: 'That user no longer exists. Reload the page.',
+} as const;
 const LAST_ADMIN = {
   error: 'last_admin',
-  message: 'At least one active administrator must remain',
+  message:
+    'Open ITSM needs at least one active administrator. Make someone else an administrator first.',
 } as const;
 
 function toAdminUser(row: typeof users.$inferSelect): AdminUser {
@@ -92,9 +96,11 @@ export function registerUserRoutes(app: FastifyInstance, { db, sessions }: Route
         return reply.code(201).send(toAdminUser(created));
       } catch (err) {
         if (isUniqueViolation(err)) {
-          return reply
-            .code(409)
-            .send({ error: 'email_taken', message: 'A user with that email already exists' });
+          return reply.code(409).send({
+            error: 'email_taken',
+            message:
+              'A user with that email already exists. Use a different email or edit the existing user.',
+          });
         }
         throw err;
       }

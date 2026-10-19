@@ -96,6 +96,12 @@ importers:
 
   apps/web:
     dependencies:
+      '@fontsource/atkinson-hyperlegible-mono':
+        specifier: 5.3.0
+        version: 5.3.0
+      '@fontsource/atkinson-hyperlegible-next':
+        specifier: 5.3.0
+        version: 5.3.0
       '@open-itsm/shared':
         specifier: workspace:*
         version: link:../../packages/shared
@@ -108,6 +114,9 @@ importers:
       clsx:
         specifier: 2.1.1
         version: 2.1.1
+      lucide-react:
+        specifier: 1.52.0
+        version: 1.52.0(@types/react@19.3.0)(react@19.3.1)
       react:
         specifier: 19.3.1
         version: 19.3.1
@@ -757,6 +766,12 @@ packages:
 
   '@fastify/swagger@9.9.2':
     resolution: {integrity: sha512-ayxItVgf/1axBvw33lqsA5ns02YMpT1r59G/HCJraRNWWBzvLgN+oiCBPhuzTiN67TvctlCYkG0+40WLKYuusQ==}
+
+  '@fontsource/atkinson-hyperlegible-mono@5.3.0':
+    resolution: {integrity: sha512-7Iha5azCRXJVk4NdxbVdKAE+4p/rMJoW6dslvhktugDFPSp7kxFRGAavBtwtSTrnyNhKXW8w1NHgMnrh/6OshA==}
+
+  '@fontsource/atkinson-hyperlegible-next@5.3.0':
+    resolution: {integrity: sha512-8p1tHVoPDo6oYwSO3sMw5snGwFwSf3TmeSF9Gcj792GXdsg6oqvhoItbj6Hj/XZIk0Xs+Cwu6pkLBAl3Q5HrwA==}
 
   '@humanfs/core@0.19.2':
     resolution: {integrity: sha512-UhXNm+CFMWcbChXywFwkmhqjs3PRCmcSa/hfBgLIb7oQ5HNb1wS0icWsGtSAUNgefHeI+eBrA8I1fxmbHsGdvA==}
@@ -1823,6 +1838,15 @@ packages:
   lru-cache@5.1.1:
     resolution: {integrity: sha512-KpNARQA3Iwv+jTA0utUVVbrh+Jlrr1Fv0e56GGzAFOXN7dk/FviaDW8LHmK52DlcH4WP2n6gI8vN1aesBFgo9w==}
 
+  lucide-react@1.52.0:
+    resolution: {integrity: sha512-TUgPtl5ZI9WgxOcbu4ckaC5B3l1qxPQrCMgb6OfUB9owx/OvSJfcf93SMgUWAxRw5/1XDfh9uI5F5iNGXCcGDQ==}
+    peerDependencies:
+      '@types/react': '*'
+      react: ^16.5.1 || ^17.0.0 || ^18.0.0 || ^19.0.0
+    peerDependenciesMeta:
+      '@types/react':
+        optional: true
+
   luxon@3.7.2:
     resolution: {integrity: sha512-vtEhXh/gNjI9Yg1u4jX/0YVPMvxzHuGgCm6tC5kZyb08yjGWGnqAjGJvcXbqQR2P3MyMEFnRbpcdFS6PBcLqew==}
     engines: {node: '>=12'}
@@ -2791,6 +2815,10 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
+  '@fontsource/atkinson-hyperlegible-mono@5.3.0': {}
+
+  '@fontsource/atkinson-hyperlegible-next@5.3.0': {}
+
   '@humanfs/core@0.19.2':
     dependencies:
       '@humanfs/types': 0.15.0
@@ -3721,6 +3749,12 @@ snapshots:
   lru-cache@5.1.1:
     dependencies:
       yallist: 3.1.1
+
+  lucide-react@1.52.0(@types/react@19.3.0)(react@19.3.1):
+    dependencies:
+      react: 19.3.1
+    optionalDependencies:
+      '@types/react': 19.3.0
 
   luxon@3.7.2: {}
 

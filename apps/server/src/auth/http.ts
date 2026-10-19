@@ -61,12 +61,15 @@ export async function registerAuth(app: FastifyInstance, sessions: SessionStore)
   app.addHook('preHandler', async (request, reply) => {
     if (SAFE_METHODS.has(request.method)) return;
     if (isCrossOrigin(request)) {
-      return forbidden(reply, 'Cross-origin request refused');
+      return forbidden(
+        reply,
+        'This request came from another site, so it was refused. Use Open ITSM from its own address.',
+      );
     }
     if (request.session && request.routeOptions.config.csrf !== 'origin-only') {
       const header = request.headers[CSRF_HEADER];
       if (typeof header !== 'string' || !sameValue(header, request.session.csrfToken)) {
-        return forbidden(reply, 'Missing or invalid CSRF token');
+        return forbidden(reply, 'Your session token did not match. Reload the page and try again.');
       }
     }
   });
@@ -90,10 +93,16 @@ export function clearSessionCookie(reply: FastifyReply) {
 export function requireRole(...roles: Role[]): preHandlerHookHandler {
   return async (request, reply) => {
     if (!request.session) {
-      return reply.code(401).send({ error: 'unauthenticated', message: 'Sign in required' });
+      return reply.code(401).send({
+        error: 'unauthenticated',
+        message: 'Your session has ended. Sign in to continue.',
+      });
     }
     if (!roles.includes(request.session.user.role)) {
-      return reply.code(403).send({ error: 'forbidden', message: 'Not allowed for your role' });
+      return reply.code(403).send({
+        error: 'forbidden',
+        message: 'Your role does not include this. Ask an administrator if you need it.',
+      });
     }
   };
 }
