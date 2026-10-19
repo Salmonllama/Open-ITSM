@@ -1,6 +1,7 @@
 import { healthResponseSchema, type ComponentStatus, type HealthResponse } from '@open-itsm/shared';
 import type { FastifyInstance } from 'fastify';
 import type { ZodTypeProvider } from 'fastify-type-provider-zod';
+import { PUBLIC } from './auth/http.js';
 
 /** Resolves true when the component is usable; false or a rejection means it is not. */
 export type HealthCheck = () => Promise<boolean>;
@@ -38,6 +39,7 @@ export function registerHealthRoute(app: FastifyInstance, options: HealthOptions
         response: { 200: healthResponseSchema, 503: healthResponseSchema },
       },
       logLevel: 'warn',
+      config: { access: PUBLIC },
     },
     async (_request, reply) => {
       const [database, queue] = await Promise.all([

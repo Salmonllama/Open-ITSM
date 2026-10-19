@@ -8,7 +8,7 @@ import { count, sql } from 'drizzle-orm';
 import type { FastifyInstance } from 'fastify';
 import type { ZodTypeProvider } from 'fastify-type-provider-zod';
 import { audit } from '../audit.js';
-import { setSessionCookie } from '../auth/http.js';
+import { PUBLIC, setSessionCookie } from '../auth/http.js';
 import { hashPassword } from '../auth/password.js';
 import type { Db } from '../db/client.js';
 import { users } from '../db/schema.js';
@@ -25,6 +25,7 @@ export function registerSetupRoutes(app: FastifyInstance, { db, sessions, setupT
   r.get(
     '/api/setup/status',
     {
+      config: { access: PUBLIC },
       schema: {
         summary: 'Whether the first-run setup wizard is still needed',
         tags: ['setup'],
@@ -37,7 +38,7 @@ export function registerSetupRoutes(app: FastifyInstance, { db, sessions, setupT
   r.post(
     '/api/setup',
     {
-      config: { csrf: 'origin-only', rateLimit: AUTH_RATE_LIMIT },
+      config: { access: PUBLIC, csrf: 'origin-only', rateLimit: AUTH_RATE_LIMIT },
       schema: {
         summary: 'Create the first administrator (works only while no users exist)',
         tags: ['setup'],

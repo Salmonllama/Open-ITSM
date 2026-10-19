@@ -194,6 +194,6 @@ These choices go beyond what the product overview states. Change any you disagre
 - [x] The API is internal only; administrators issue tokens for scripting. **Confirmed by user**
 - [x] API tokens belong to named service accounts that outlive staff changes, not to people. **Confirmed by user**
 - [x] Four token scopes: `assets:read`, `assets:write`, `tickets:read`, `tickets:write`. **Confirmed by user**
-- [ ] Token expiry defaults to 90 days with a one-year maximum, and there are no non-expiring tokens.
-- [ ] Token infrastructure ships in M2 with the asset scopes; the ticket scopes follow in M6 when tickets exist.
-- [ ] Asset type and custom field definitions are covered by the asset scopes rather than kept for signed-in users.
+- [x] Token expiry defaults to 90 days with a one-year maximum, and there are no non-expiring tokens. **Confirmed by user**
+- [x] Token infrastructure ships in M2 with the asset scopes; the ticket scopes follow in M6 when tickets exist. **Confirmed by user**
+- [x] Asset type and custom field definitions are covered by the asset scopes rather than kept for signed-in users. **Confirmed by user**

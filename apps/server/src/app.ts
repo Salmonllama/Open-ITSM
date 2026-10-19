@@ -15,12 +15,16 @@ import {
   serializerCompiler,
   validatorCompiler,
 } from 'fastify-type-provider-zod';
-import { registerAuth } from './auth/http.js';
+import { registerAuth, STAFF_ROLES, type TokenLimits } from './auth/http.js';
 import { SessionStore } from './auth/sessions.js';
+import { TokenStore } from './auth/tokens.js';
 import type { SetupToken } from './auth/setup-token.js';
 import type { Db } from './db/client.js';
 import { registerHealthRoute, type HealthCheck } from './health.js';
+import { registerAssetTypeRoutes } from './routes/asset-types.js';
+import { registerAssetRoutes } from './routes/assets.js';
 import { registerAuthRoutes } from './routes/auth.js';
+import { registerServiceAccountRoutes } from './routes/service-accounts.js';
 import { registerSetupRoutes } from './routes/setup.js';
 import { registerUserRoutes } from './routes/users.js';
 
@@ -33,6 +37,8 @@ export type AppOptions = {
   setupToken: SetupToken;
   /** Directory holding the built web UI. Static serving is skipped when unset or missing. */
   webRoot?: string | undefined;
+  /** Per-token and invalid-token limits; tests lower them. */
+  tokenLimits?: TokenLimits | undefined;
 };
 
 export async function buildApp(options: AppOptions): Promise<FastifyInstance> {
@@ -50,7 +56,6 @@ export async function buildApp(options: AppOptions): Promise<FastifyInstance> {
     },
     transform: jsonSchemaTransform,
   });
-  await app.register(fastifySwaggerUi, { routePrefix: '/api/docs' });
 
   app.setErrorHandler((err: FastifyError, request, reply) => {
     if (hasZodFastifySchemaValidationErrors(err)) {
@@ -81,13 +86,32 @@ export async function buildApp(options: AppOptions): Promise<FastifyInstance> {
 
   await app.register(fastifyRateLimit, { global: false });
   const sessions = new SessionStore(options.db, options.sessionSecret);
-  await registerAuth(app, sessions);
+  const tokens = new TokenStore(options.db);
+  await registerAuth(app, { db: options.db, sessions, tokens, limits: options.tokenLimits });
+
+  // The API reference is for signed-in administrators and technicians only, never tokens.
+  await app.register(async (docs) => {
+    docs.addHook('onRoute', (route) => {
+      route.config = { ...route.config, access: { roles: STAFF_ROLES } };
+    });
+    await docs.register(fastifySwaggerUi, { routePrefix: '/api/docs' });
+  });
+
+  // CSV import sends the file as the body; other routes take JSON only.
+  app.addContentTypeParser(
+    'text/csv',
+    { parseAs: 'string', bodyLimit: 5 * 1024 * 1024 },
+    (_request, body, done) => done(null, body),
+  );
 
   registerHealthRoute(app, { version: options.version, checks: options.checks });
-  const deps = { db: options.db, sessions, setupToken: options.setupToken };
+  const deps = { db: options.db, sessions, tokens, setupToken: options.setupToken };
   registerSetupRoutes(app, deps);
   registerAuthRoutes(app, deps);
   registerUserRoutes(app, deps);
+  registerServiceAccountRoutes(app, deps);
+  registerAssetTypeRoutes(app, deps);
+  registerAssetRoutes(app, deps);
 
   const webRoot = options.webRoot ? path.resolve(options.webRoot) : undefined;
   const serveWeb = webRoot !== undefined && existsSync(path.join(webRoot, 'index.html'));

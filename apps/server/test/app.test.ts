@@ -14,6 +14,13 @@ async function makeApp(overrides: Partial<AppOptions> = {}) {
   return app;
 }
 
+function makeWebRoot() {
+  const dir = mkdtempSync(path.join(tmpdir(), 'open-itsm-web-'));
+  writeFileSync(path.join(dir, 'index.html'), '<!doctype html><title>Open ITSM</title>');
+  writeFileSync(path.join(dir, 'app.js'), 'console.log(1)');
+  return dir;
+}
+
 afterEach(async () => {
   await app?.close();
   app = undefined;
@@ -51,22 +58,37 @@ describe('GET /healthz', () => {
   });
 });
 
-describe('API docs', () => {
-  it('publishes an OpenAPI document that includes /healthz', async () => {
-    const res = await (await makeApp()).inject({ method: 'GET', url: '/api/docs/json' });
-    expect(res.statusCode).toBe(200);
-    expect(res.json().paths).toHaveProperty('/healthz');
+describe('route access', () => {
+  it('has every route declare who may call it', async () => {
+    const instance = await makeApp({ webRoot: makeWebRoot() });
+    await instance.ready();
+    const undeclared = instance.declaredRoutes
+      .filter((route) => !route.config?.access)
+      .map((route) => `${String(route.method)} ${route.url}`);
+    expect(undeclared).toEqual([]);
+  });
+
+  it('keeps the API reference behind sign-in', async () => {
+    const instance = await makeApp();
+    for (const url of ['/api/docs', '/api/docs/json', '/api/docs/static/index.html']) {
+      const res = await instance.inject({ method: 'GET', url });
+      expect(res.statusCode, url).toBe(401);
+    }
+  });
+
+  it('sends no CORS headers', async () => {
+    const res = await (
+      await makeApp()
+    ).inject({
+      method: 'OPTIONS',
+      url: '/api/assets',
+      headers: { origin: 'https://evil.example', 'access-control-request-method': 'GET' },
+    });
+    expect(res.headers['access-control-allow-origin']).toBeUndefined();
   });
 });
 
 describe('web UI serving', () => {
-  function makeWebRoot() {
-    const dir = mkdtempSync(path.join(tmpdir(), 'open-itsm-web-'));
-    writeFileSync(path.join(dir, 'index.html'), '<!doctype html><title>Open ITSM</title>');
-    writeFileSync(path.join(dir, 'app.js'), 'console.log(1)');
-    return dir;
-  }
-
   it('serves static files and falls back to index.html for client routes', async () => {
     const instance = await makeApp({ webRoot: makeWebRoot() });
     const asset = await instance.inject({ method: 'GET', url: '/app.js' });
