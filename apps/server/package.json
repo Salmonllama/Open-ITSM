@@ -21,6 +21,7 @@
     "@fastify/swagger": "9.9.2",
     "@fastify/swagger-ui": "6.1.2",
     "@open-itsm/shared": "workspace:*",
+    "csv-parse": "7.0.3",
     "drizzle-orm": "0.45.4",
     "fastify": "5.12.7",
     "fastify-type-provider-zod": "7.0.0",

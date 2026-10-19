@@ -3,7 +3,7 @@ import { eq, sql } from 'drizzle-orm';
 import type { FastifyInstance } from 'fastify';
 import type { ZodTypeProvider } from 'fastify-type-provider-zod';
 import { audit } from '../audit.js';
-import { clearSessionCookie, setSessionCookie } from '../auth/http.js';
+import { clearSessionCookie, PUBLIC, setSessionCookie } from '../auth/http.js';
 import { dummyHash, verifyPassword } from '../auth/password.js';
 import { users } from '../db/schema.js';
 import { AUTH_RATE_LIMIT, type RouteDeps } from './deps.js';
@@ -27,7 +27,7 @@ export function registerAuthRoutes(app: FastifyInstance, { db, sessions }: Route
   r.post(
     '/api/auth/login',
     {
-      config: { csrf: 'origin-only', rateLimit: AUTH_RATE_LIMIT },
+      config: { access: PUBLIC, csrf: 'origin-only', rateLimit: AUTH_RATE_LIMIT },
       schema: {
         summary: 'Sign in with a local account',
         tags: ['auth'],
@@ -103,7 +103,11 @@ export function registerAuthRoutes(app: FastifyInstance, { db, sessions }: Route
 
   r.post(
     '/api/auth/logout',
-    { schema: { summary: 'Sign out and revoke the current session', tags: ['auth'] } },
+    {
+      // Public so a stale cookie can still be cleared; it only ever ends the caller's own session.
+      config: { access: PUBLIC },
+      schema: { summary: 'Sign out and revoke the current session', tags: ['auth'] },
+    },
     async (request, reply) => {
       if (request.session) {
         await sessions.revoke(request.session.id);
@@ -117,6 +121,7 @@ export function registerAuthRoutes(app: FastifyInstance, { db, sessions }: Route
   r.get(
     '/api/auth/session',
     {
+      config: { access: { roles: ['admin', 'technician', 'end_user'] } },
       schema: {
         summary: 'The signed-in user and the CSRF token for write requests',
         tags: ['auth'],

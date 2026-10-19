@@ -11,10 +11,10 @@ import type { FastifyInstance } from 'fastify';
 import type { ZodTypeProvider } from 'fastify-type-provider-zod';
 import { z } from 'zod';
 import { audit } from '../audit.js';
-import { clearSessionCookie, requireRole } from '../auth/http.js';
+import { actorOf, clearSessionCookie } from '../auth/http.js';
 import { hashPassword } from '../auth/password.js';
 import { users } from '../db/schema.js';
-import { USERS_LOCK_KEY, type RouteDeps } from './deps.js';
+import { ADMIN_ONLY, isUniqueViolation, USERS_LOCK_KEY, type RouteDeps } from './deps.js';
 
 const idParams = z.object({ id: z.uuid() });
 
@@ -40,20 +40,13 @@ function toAdminUser(row: typeof users.$inferSelect): AdminUser {
   };
 }
 
-function isUniqueViolation(err: unknown): boolean {
-  const code = (err as { code?: string; cause?: { code?: string } }).code;
-  const causeCode = (err as { cause?: { code?: string } }).cause?.code;
-  return code === '23505' || causeCode === '23505';
-}
-
 export function registerUserRoutes(app: FastifyInstance, { db, sessions }: RouteDeps) {
   const r = app.withTypeProvider<ZodTypeProvider>();
-  const adminOnly = requireRole('admin');
 
   r.get(
     '/api/users',
     {
-      preHandler: adminOnly,
+      config: { access: ADMIN_ONLY },
       schema: {
         summary: 'List all user accounts',
         tags: ['users'],
@@ -66,7 +59,7 @@ export function registerUserRoutes(app: FastifyInstance, { db, sessions }: Route
   r.post(
     '/api/users',
     {
-      preHandler: adminOnly,
+      config: { access: ADMIN_ONLY },
       schema: {
         summary: 'Create a local administrator or technician account',
         tags: ['users'],
@@ -86,7 +79,7 @@ export function registerUserRoutes(app: FastifyInstance, { db, sessions }: Route
           if (!row) throw new Error('insert returned no row');
           await audit(tx, {
             action: 'user.created',
-            actorUserId: request.session?.user.id,
+            ...actorOf(request),
             targetUserId: row.id,
             ip: request.ip,
             details: { role },
@@ -110,7 +103,7 @@ export function registerUserRoutes(app: FastifyInstance, { db, sessions }: Route
   r.patch(
     '/api/users/:id',
     {
-      preHandler: adminOnly,
+      config: { access: ADMIN_ONLY },
       schema: {
         summary: 'Change a user’s name, role or disabled state',
         tags: ['users'],
@@ -149,7 +142,7 @@ export function registerUserRoutes(app: FastifyInstance, { db, sessions }: Route
         if (disabled === true) await sessions.revokeAllForUser(id, tx);
         await audit(tx, {
           action: 'user.updated',
-          actorUserId: request.session?.user.id,
+          ...actorOf(request),
           targetUserId: id,
           ip: request.ip,
           details: { name: name !== undefined, role, disabled },
@@ -166,7 +159,7 @@ export function registerUserRoutes(app: FastifyInstance, { db, sessions }: Route
   r.post(
     '/api/users/:id/password',
     {
-      preHandler: adminOnly,
+      config: { access: ADMIN_ONLY },
       schema: {
         summary: 'Set a new password; signs the user out everywhere and clears any lockout',
         tags: ['users'],
@@ -187,7 +180,7 @@ export function registerUserRoutes(app: FastifyInstance, { db, sessions }: Route
         await sessions.revokeAllForUser(id, tx);
         await audit(tx, {
           action: 'user.password_reset',
-          actorUserId: request.session?.user.id,
+          ...actorOf(request),
           targetUserId: id,
           ip: request.ip,
           details: { via: 'admin' },

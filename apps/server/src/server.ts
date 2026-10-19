@@ -3,6 +3,7 @@ import { buildApp } from './app.js';
 import { SetupToken } from './auth/setup-token.js';
 import { ConfigError, loadConfig } from './config.js';
 import { checkDatabase, createDb, createPool, runMigrations } from './db/client.js';
+import { loggerOptions } from './logging.js';
 import { checkQueue, createQueue } from './queue.js';
 import { hasUsers } from './routes/setup.js';
 
@@ -10,12 +11,11 @@ const SHUTDOWN_TIMEOUT_MS = 10_000;
 
 async function main(): Promise<void> {
   const config = loadConfig();
-  const loggerOptions: pino.LoggerOptions = {
-    level: config.logLevel,
-    redact: ['req.headers.authorization', 'req.headers.cookie', 'res.headers["set-cookie"]'],
+  const logOptions: pino.LoggerOptions = {
+    ...loggerOptions(config.logLevel),
     ...(config.env === 'development' ? { transport: { target: 'pino-pretty' } } : {}),
   };
-  const logger = pino(loggerOptions);
+  const logger = pino(logOptions);
 
   const pool = createPool(config.databaseUrl);
   pool.on('error', (err) => logger.error({ err }, 'database pool error'));
@@ -44,7 +44,7 @@ async function main(): Promise<void> {
 
   const app = await buildApp({
     version: config.version,
-    logger: loggerOptions,
+    logger: logOptions,
     checks: {
       database: () => checkDatabase(pool),
       queue: () => checkQueue(queue),
