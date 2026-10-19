@@ -65,7 +65,7 @@ Branding is decided and summarized in `docs/open-itsm-brand.md`; the full source
 **Decided**
 
 - Name: Open ITSM
-- Brand: calm and dependable; "Scan and check" logo; pine green palette; Atkinson Hyperlegible fonts; Lucide icons (see `claude/open-itsm-brand.md`)
+- Brand: calm and dependable; "Scan and check" logo; pine green palette; Atkinson Hyperlegible fonts; Lucide icons (see `docs/open-itsm-brand.md`)
 - Target team size: 1 to 10 technicians
 - Email: Microsoft 365 first; Google Workspace and generic IMAP/SMTP in later versions
 - End users: optional dashboard in v1; knowledge base and suggested articles later
