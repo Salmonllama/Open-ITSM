@@ -1,8 +1,9 @@
 # CLAUDE.md
 
 Open ITSM is a free, self-hosted ITSM (asset management and email ticketing) for IT teams of 1 to
-10 technicians. `docs/IMPLEMENTATION.md` is the spec: stack, data model, build order and
-acceptance criteria. Read it before starting work.
+10 technicians. Read both before starting work: `docs/PRODUCT_OVERVIEW.md` defines v1 scope (and
+what is out of scope); `docs/IMPLEMENTATION.md` fixes the stack, data model, build order and
+acceptance criteria.
 
 ## Status
 
@@ -15,7 +16,7 @@ Update this table when a milestone is committed.
 
 ## Working rules
 
-1. Build only what `docs/IMPLEMENTATION.md` (and the product overview) describe. Put proposed
+1. Build only what `docs/PRODUCT_OVERVIEW.md` and `docs/IMPLEMENTATION.md` describe. Put proposed
    extras in `docs/IDEAS.md` instead of building them.
 2. One milestone at a time. Before moving on, run `pnpm check` (lint, format, typecheck, tests)
    and commit with a clear message.
@@ -118,5 +119,7 @@ Dockerfile        multi-stage; runtime runs as `node`, files root-owned
 
 ## Open questions
 
-- The spec refers to a "product overview" document that is not in the repo. Add it under
-  `docs/` if it exists; until then `docs/IMPLEMENTATION.md` is the only scope reference.
+- GPL v3 is tentative until the first release (AGPL may be revisited if hosted SaaS happens).
+  Do not change `LICENSE` without being told.
+- Admin recovery when SSO is misconfigured and the admin password is lost: answered by the
+  host-level recovery CLI (M1), confirmed in `docs/IMPLEMENTATION.md`.

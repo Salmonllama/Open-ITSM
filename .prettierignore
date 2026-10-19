@@ -4,3 +4,4 @@ dist
 coverage
 apps/web/src/routeTree.gen.ts
 docs/IMPLEMENTATION.md
+docs/PRODUCT_OVERVIEW.md
