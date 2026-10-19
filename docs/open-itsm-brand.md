@@ -42,6 +42,13 @@ All text colours pass WCAG AA (4.5:1) on their backgrounds in both themes.
 - **Spacing:** 4px grid (4, 8, 12, 16, 24, 32). **Radius:** 4 badges, 6 buttons and inputs, 10 cards and dialogs.
 - Borders separate things; shadows only on floating elements.
 
+## Layout
+
+- **Shell:** a sidebar (`surface-sunken`, lockup at 28px in the top-left corner) beside one full-width page.
+- **Lists and records are separate pages.** The ticket list and asset list each fill the page; opening a ticket or asset goes to its own page, with a breadcrumb back to the list. No side panes, flyouts or split views. (Decided 2026-10-19, replacing an earlier list-plus-detail-pane layout that crowded both.)
+- **Record pages:** title, status and main actions at the top; main content (conversation, details, history) in a wide left column; supporting cards (requester, linked assets, asset tag, activity) in a narrower right column that stacks below on small screens.
+- **Phone width:** the optional end-user dashboard and the scan screen must work on a phone.
+
 ## Voice
 
 Short sentences, plain words, no exclamation marks, no emoji, no blame. Lead with what happened, then what to do. Fixed vocabulary: ticket, asset, technician, requester.
