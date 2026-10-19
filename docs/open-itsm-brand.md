@@ -1,6 +1,6 @@
 # Open ITSM: Brand and Design Summary
 
-Decided 2026-10-19. The full source of truth (tokens, components, logo files, usage rules) is the **Open ITSM design system** artifact in claude.ai: https://claude.ai/artifact/XWujBHYD27pk42Cjo7eGjq. This doc is the short version for planning and for building the app.
+Decided 2026-10-19. The full source of truth (tokens, components, logo files, usage rules) is the **Open ITSM design system** artifact in claude.ai: https://claude.ai/artifact/XWujBHYD27pk42Cjo7eGjq. The v1 screens are mocked up in the **Open ITSM v1 Page Mockups** canvas: https://claude.ai/artifact/2LQ377awSSjUywLaPvvLwH (see Page mockups below). This doc is the short version for planning and for building the app.
 
 ## Identity
 
@@ -48,6 +48,21 @@ All text colours pass WCAG AA (4.5:1) on their backgrounds in both themes.
 - **Lists and records are separate pages.** The ticket list and asset list each fill the page; opening a ticket or asset goes to its own page, with a breadcrumb back to the list. No side panes, flyouts or split views. (Decided 2026-10-19, replacing an earlier list-plus-detail-pane layout that crowded both.)
 - **Record pages:** title, status and main actions at the top; main content (conversation, details, history) in a wide left column; supporting cards (requester, linked assets, asset tag, activity) in a narrower right column that stacks below on small screens.
 - **Phone width:** the optional end-user dashboard and the scan screen must work on a phone.
+
+## Page mockups
+
+The **Open ITSM v1 Page Mockups** canvas (https://claude.ai/artifact/2LQ377awSSjUywLaPvvLwH) shows each v1 technician screen in light and dark themes. It is built with the design system's real tokens and components, so treat it as the visual reference when building a screen; where it and the design system disagree, the design system wins.
+
+| Screen | Light artboard | Dark artboard | Shows |
+| --- | --- | --- | --- |
+| Asset list | `project/Main.dc.html` | `project/AssetListDark.dc.html` | Status tabs with counts, search and filters, low-stock notice, asset table, paging |
+| Asset page | `project/AssetView.dc.html` | `project/AssetViewDark.dc.html` | Asset header and actions, custom-field details, assignment history, repairs, current assignee, printable asset tag, related tickets, activity |
+| Ticket list | `project/TicketList.dc.html` | `project/TicketListDark.dc.html` | Queue tabs, search and filters, TicketRow list with unread dots, paging |
+| Ticket page | `project/TicketView.dc.html` | `project/TicketViewDark.dc.html` | Status and assignee controls, email conversation with internal notes, reply/note composer, requester, linked assets, details, history |
+
+**Reading it in code work:** open the canvas link in a browser to see it, or read an artboard's source with the Artifact tool (`action: "read"`, the canvas URL and the artboard's `path` above). Each dark artboard only imports its light page with `theme="dark"`, so the light file holds the markup. Inline styles use the design system's CSS variables (`var(--pine)`, `var(--space-4)`, `var(--text-id)`), and `<x-import component-from-global-scope="OpenITSM.…">` marks where a design system component goes.
+
+**What is sample content, not spec:** names, ticket subjects, counts and dates are placeholders. Asset numbers show a team-set prefix (`IT-000142`) as an example only. `[company]` stands in for the team's domain. Ticket-to-asset linking appears on both record pages but is not yet in the v1 product overview.
 
 ## Voice
 
