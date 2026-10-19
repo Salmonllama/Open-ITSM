@@ -1,14 +1,14 @@
 import {
-  ASSET_STATUSES,
   IMPORT_MAX_ROWS,
+  SETTABLE_ASSET_STATUSES,
   assetNameSchema,
   assetNumberSchema,
   assetStatusLabels,
   errorResponseSchema,
   importQuerySchema,
   importResultSchema,
-  type AssetStatus,
   type FieldValues,
+  type SettableAssetStatus,
   type ImportProblem,
 } from '@open-itsm/shared';
 import { parse } from 'csv-parse/sync';
@@ -28,7 +28,7 @@ type Row = {
   line: number;
   number: string | undefined;
   name: string;
-  status: AssetStatus;
+  status: SettableAssetStatus;
   fields: FieldValues;
 };
 
@@ -36,8 +36,9 @@ type Column =
   | { kind: 'number' | 'name' | 'status'; header: string }
   | { kind: 'field'; header: string; field: FieldDef };
 
-const statusByText = new Map<string, AssetStatus>(
-  ASSET_STATUSES.flatMap((s) => [
+// Deployed and In repair come from assignments and repairs, so a file cannot set them.
+const statusByText = new Map<string, SettableAssetStatus>(
+  SETTABLE_ASSET_STATUSES.flatMap((s) => [
     [s, s],
     [s.replace('_', ' '), s],
     [assetStatusLabels[s].toLowerCase(), s],
@@ -161,7 +162,7 @@ export function readImportFile(
           problems.push({
             line,
             column: column.header,
-            message: `Use one of: ${ASSET_STATUSES.map((s) => assetStatusLabels[s]).join(', ')}.`,
+            message: `Use one of: ${SETTABLE_ASSET_STATUSES.map((s) => assetStatusLabels[s]).join(', ')}. Assign or repair assets after importing them.`,
           });
       } else if (column.kind === 'field') {
         const value = fromCsvCell(column.field, cell);
@@ -228,7 +229,7 @@ export function registerAssetImportRoute(app: FastifyInstance, { db }: RouteDeps
         summary: 'Import assets of one type from CSV; nothing is created unless every row is valid',
         description: [
           'Send the file as the body with `Content-Type: text/csv`. The header names the columns:',
-          '`Number` (optional; blank takes the next number), `Name`, `Status` (optional; default In stock)',
+          '`Number` (optional; blank takes the next number), `Name`, `Status` (optional: Preparing, In stock or Retired; default In stock)',
           'and one column per custom field, by label. Every problem, including every duplicate number',
           'within the file or against existing assets, is reported at once with its line. Use',
           '`dryRun=true` to check a file without importing it.',

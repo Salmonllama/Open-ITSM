@@ -62,4 +62,28 @@ Invoke-RestMethod -Method Post -Headers $headers -ContentType 'text/csv' `
   -Uri "https://itsm.example.com/api/assets/import?typeId=<type id>&dryRun=true"
 ```
 
+## Assign, return and repair an asset
+
+These need `assets:write` and use the asset's ID (from the lookup above). Assigning sets the
+status to Deployed, and a repair sets In repair until it is closed. The history is recorded
+under the service account's name.
+
+```powershell
+$asset = Invoke-RestMethod -Headers $headers `
+  -Uri "https://itsm.example.com/api/assets/by-number/LAP-000123"
+Invoke-RestMethod -Method Post -Headers $headers -ContentType 'application/json' `
+  -Body (@{ assignee = 'Priya Nair'; location = 'HQ, 3rd floor' } | ConvertTo-Json) `
+  -Uri "https://itsm.example.com/api/assets/$($asset.id)/assign"
+```
+
+```sh
+curl -fsS -H "Authorization: Bearer $OPEN_ITSM_TOKEN" -H 'Content-Type: application/json' \
+  -d '{"status":"in_stock"}' https://itsm.example.com/api/assets/<asset id>/return
+```
+
+`POST /api/assets/<asset id>/repairs` with `{"summary":"Battery replaced"}` opens a repair, and
+`POST /api/assets/<asset id>/repairs/<repair id>/close` closes it. `GET
+/api/assets/<asset id>/history` lists assignments, repairs and activity. A change the asset's
+state does not allow (for example assigning a retired asset) returns HTTP 409 with a message.
+
 Updating a ticket's status is added here when tickets arrive.

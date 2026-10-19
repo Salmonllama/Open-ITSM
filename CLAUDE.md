@@ -12,8 +12,8 @@ voice, logo) and the page mockups that every screen must follow.
 | ----------------------------------------------------------------------- | ------------------------------------------------------- |
 | M0 Scaffold, image, compose, `/healthz`, CI, LICENSE, CLAUDE.md         | Done (CI green on PR #1)                                |
 | M1 Migrations, setup wizard, local login, roles, sessions, recovery CLI | Done (CI green on PR #2; restyled to the design system) |
-| M2 Asset types, fields, assets, CSV import, service accounts, tokens    | Built; CI green on PR #3, waiting on review             |
-| M3 Assignment, locations, status rules, asset history                   | Not started (wait for the user)                         |
+| M2 Asset types, fields, assets, CSV import, service accounts, tokens    | Done (CI green on PR #3)                                |
+| M3 Status rules, assignment history, repairs, asset activity            | Built; PR open, waiting on CI and review                |
 
 Update this table when a milestone is committed.
 
@@ -67,7 +67,10 @@ pnpm --filter @open-itsm/server cli reset-password admin@example.com [--enable]
 ```
 
 `pnpm dev` reads `../../.env` for the server if it exists; set `DATABASE_URL` to a reachable
-database (for example the test container above).
+database (for example the test container above). Writes through Vite on :5173 are refused by the
+CSRF origin check (Vite's proxy rewrites `Host`), so click-through checks of writes use the built
+app instead: `pnpm build`, then `WEB_ROOT=apps/web/dist node dist/server.js` in `apps/server`
+with the `.env` values exported, on http://localhost:3000.
 
 ## Layout
 
@@ -83,7 +86,8 @@ apps/server       Fastify API; also serves the built web UI from WEB_ROOT
                   http (cookie, bearer, CSRF, deny-by-default access check, token audit)
   src/assets/     fields.ts (field keys, value validation, CSV cells), numbers.ts (next numbers)
   src/routes/     setup, auth, users and service-accounts (admin only), asset-types, assets,
-                  asset-import; deps.ts holds RouteDeps and the ADMIN_ONLY/ASSETS_* access presets
+                  asset-import, asset-history (assign, return, repairs, history, suggestions);
+                  deps.ts holds RouteDeps and the ADMIN_ONLY/ASSETS_* access presets
   src/audit.ts    append-only audit log writer (actor is a user or a service account)
   src/recovery.ts recovery commands; src/cli.ts is the `itsm` entrypoint in the image
   drizzle/        generated SQL migrations, applied at startup in one transaction
@@ -91,11 +95,13 @@ apps/server       Fastify API; also serves the built web UI from WEB_ROOT
 apps/web          React + Vite + TanStack Router/Query + Tailwind v4
   src/index.css   design-system tokens (light, dark, OS-dark), Tailwind colour mappings, type-* styles
   src/components/ ui/ (Button, Input/Select/Label, Card/ErrorMessage, StatusBadge, Table), FormField,
-                  PageHeader, ConfirmDialog, Logo, AuthLayout, ThemeSelect
+                  PageHeader, ConfirmDialog, FormDialog, Logo, AuthLayout, ThemeSelect
   src/routes/     setup, login, authed layout (sidebar shell; redirects to setup/login), index,
                   assets (list), asset-new, asset-view (view + edit), asset-import, asset-types
                   (list + one type), admin-users, admin-service-accounts
   src/components/asset-form.tsx  number, name, status and the type's custom fields
+  src/components/asset-history.tsx  asset page cards (assigned to, assignment history, repairs,
+                  activity) and the assign/return/repair/status dialogs
   src/lib/        api.ts (fetch wrapper, CSRF header, CSV import), queries.ts, assets.ts (status
                   tones, date and field formatting), theme.ts, roles.ts
   public/brand/   logo SVGs from the design system (lockup, reversed, mark, favicon, app icon)
@@ -226,15 +232,32 @@ Dockerfile        multi-stage; runtime runs as `node`, files root-owned
 - **Service accounts** can be deleted only while nothing references them (409 `has_history`);
   otherwise disable them.
 - **Who manages asset types (M2, user's choice):** administrators and technicians.
-- **Asset fields (M2, user's choice):** number, name, status, type and custom fields. Status is
-  free to choose (default In stock); status rules, assignment and location are M3. Asset numbers
+- **Asset fields (M2, user's choice):** number, name, status, type and custom fields. Asset numbers
   are `PREFIX-000123`, unique ignoring case across all types; a blank number takes the type's
   next number, skipping numbers already taken (the type row is locked). Numbers may contain `/`,
   so web URLs use the asset ID. Custom field values are JSONB keyed by a slug of the label;
   kinds are text, number, date (YYYY-MM-DD), select and boolean, and a field's kind never
   changes. Removing a choice that assets still use is refused.
-- **Deleting assets (M2, user's choice):** allowed with a confirmation naming the asset and an
-  audit record. Once history exists (M3), assets are retired instead of deleted.
+- **Deleting assets (M2/M3, user's choice):** allowed with a confirmation naming the asset and an
+  audit record, only while its activity holds nothing but edits; otherwise 409 and retire it.
+  The page hides Delete once that is true.
+- **Status rules (M3, user's choice):** people set only Preparing, In stock and Retired (create,
+  edit, import, Change status), and only while the asset is not Deployed or In repair. Assigning
+  sets Deployed; reassigning ends the open assignment and starts a new one; returning ends it and
+  sets In stock or Retired. Opening a repair sets In repair (a DB trigger on `repairs` insert, so
+  it holds for any writer) and keeps the assignment open; closing restores `previous_status`. A
+  retired asset cannot be assigned or repaired; nothing can be assigned or returned during a
+  repair; one open repair per asset. Refusals are 409 with what to do next.
+- **Assignments (M3, user's choice):** free-text person and/or location (at least one), since end
+  users are not accounts until M10; suggestions come from earlier assignments
+  (`GET /api/assets/assignment-suggestions`). One open assignment per asset (partial unique
+  index). `asset_assignments` and `repairs` are append only by trigger: the only update allowed
+  is ending or closing an open row (closing may replace the repair notes); no delete or truncate.
+- **Asset activity (M3, user's choice):** `asset_events` (append only) records edits (labels of
+  what changed), status changes, assignments, returns and repairs, with the actor (user or
+  service account). Its rows cascade only when the asset itself is deleted (trigger allows the
+  delete only once the asset row is gone). `GET /api/assets/:id/history` returns assignments,
+  repairs and activity, newest first. All of this is under the asset scopes.
 - **CSV import:** comma-separated, UTF-8 (BOM allowed), header row names columns (`Number`,
   `Name`, `Status` and field labels or keys, any case). All-or-nothing in one transaction, at
   most 5,000 rows; every problem is reported with its line and column (HTTP 422); `dryRun=true`

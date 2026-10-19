@@ -22,6 +22,20 @@
       "when": 1792439545145,
       "tag": "0002_assets_and_api_tokens",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1792447987677,
+      "tag": "0003_asset_history",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1792447988693,
+      "tag": "0004_asset_history_rules",
+      "breakpoints": true
     }
   ]
 }

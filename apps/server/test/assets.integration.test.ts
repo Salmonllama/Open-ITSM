@@ -224,12 +224,12 @@ describe.skipIf(!testDatabaseUrl)('asset types, assets and CSV import', () => {
       const res = await tech.request({
         method: 'PATCH',
         url: `/api/assets/${asset.id}`,
-        payload: { name: 'New', status: 'deployed', fields: { room: '2.01' } },
+        payload: { name: 'New', status: 'retired', fields: { room: '2.01' } },
       });
       expect(res.statusCode).toBe(200);
       expect(res.json()).toMatchObject({
         name: 'New',
-        status: 'deployed',
+        status: 'retired',
         fields: { room: '2.01' },
       });
       const found = await tech.request({
@@ -251,8 +251,8 @@ describe.skipIf(!testDatabaseUrl)('asset types, assets and CSV import', () => {
     it('searches number, name and field values, filters, counts and pages', async () => {
       const type = await createType(tech, 'Camera', 'CAM', [{ label: 'Serial', kind: 'text' }]);
       for (const [name, status, serial] of [
-        ['Lobby camera', 'deployed', 'ZX-100'],
-        ['Car park camera', 'deployed', 'ZX-200'],
+        ['Lobby camera', 'preparing', 'ZX-100'],
+        ['Car park camera', 'preparing', 'ZX-200'],
         ['Spare camera', 'in_stock', 'QQ-999'],
       ] as const) {
         await createAsset(tech, { typeId: type.id, name, status, fields: { serial } });
@@ -262,14 +262,14 @@ describe.skipIf(!testDatabaseUrl)('asset types, assets and CSV import', () => {
         'Lobby camera',
         'Car park camera',
       ]);
-      const deployed = await tech.request({
+      const preparing = await tech.request({
         method: 'GET',
-        url: `/api/assets?typeId=${type.id}&status=deployed&pageSize=1&page=2`,
+        url: `/api/assets?typeId=${type.id}&status=preparing&pageSize=1&page=2`,
       });
-      const body = deployed.json();
+      const body = preparing.json();
       expect(body.total).toBe(2);
       expect(body.items).toHaveLength(1);
-      expect(body.counts).toMatchObject({ all: 3, deployed: 2, in_stock: 1, retired: 0 });
+      expect(body.counts).toMatchObject({ all: 3, preparing: 2, in_stock: 1, retired: 0 });
       const literal = await tech.request({ method: 'GET', url: '/api/assets?q=100%25' });
       expect(literal.json().total).toBe(0);
     });
@@ -312,9 +312,9 @@ describe.skipIf(!testDatabaseUrl)('asset types, assets and CSV import', () => {
       ]);
       const csv = [
         '﻿Number,Name,Status,Make,Wireless,Price',
-        ',Headset A,Deployed,jabra,yes,"1,200"',
+        ',Headset A,Preparing,jabra,yes,"1,200"',
         'HDS-000001,"Headset, B",,Poly,no,',
-        ',"Headset\nC",in repair,,,',
+        ',"Headset\nC",retired,,,',
       ].join('\r\n');
       const dry = await importCsv(tech, type.id, csv, true);
       expect(dry.statusCode).toBe(200);
@@ -336,8 +336,8 @@ describe.skipIf(!testDatabaseUrl)('asset types, assets and CSV import', () => {
         ]),
       ).toEqual([
         ['HDS-000001', 'Headset, B', 'in_stock'],
-        ['HDS-000002', 'Headset A', 'deployed'],
-        ['HDS-000003', 'Headset\nC', 'in_repair'],
+        ['HDS-000002', 'Headset A', 'preparing'],
+        ['HDS-000003', 'Headset\nC', 'retired'],
       ]);
       const a = await tech.request({ method: 'GET', url: '/api/assets/by-number/HDS-000002' });
       expect(a.json().fields).toEqual({ make: 'Jabra', wireless: true, price: 1200 });
