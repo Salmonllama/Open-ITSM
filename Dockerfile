@@ -35,8 +35,11 @@ ENV NODE_ENV=production \
 COPY --from=prod-deps /repo /app
 COPY --from=build /repo/packages/shared/dist /app/packages/shared/dist
 COPY --from=build /repo/apps/server/dist /app/apps/server/dist
+COPY --from=build /repo/apps/server/drizzle /app/apps/server/drizzle
 COPY --from=build /repo/apps/web/dist /app/public
-RUN mkdir -p /data/attachments /data/backups && chown -R node:node /data
+RUN mkdir -p /data/attachments /data/backups && chown -R node:node /data \
+ && printf '#!/bin/sh\nexec node /app/apps/server/dist/cli.js "$@"\n' > /usr/local/bin/itsm \
+ && chmod 755 /usr/local/bin/itsm
 
 USER node
 WORKDIR /app/apps/server

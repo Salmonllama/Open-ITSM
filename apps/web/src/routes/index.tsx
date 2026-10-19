@@ -1,9 +1,12 @@
 import { queryOptions, useQuery } from '@tanstack/react-query';
 import { createRoute } from '@tanstack/react-router';
 import type { ComponentStatus } from '@open-itsm/shared';
+import { PageHeader } from '@/components/page-header';
+import { ErrorMessage } from '@/components/ui/card';
+import { StatusBadge } from '@/components/ui/status-badge';
+import { Table, Td, Th } from '@/components/ui/table';
 import { fetchHealth } from '@/lib/api';
-import { cn } from '@/lib/utils';
-import { rootRoute } from './root';
+import { authedRoute } from './authed';
 
 const healthQuery = queryOptions({
   queryKey: ['health'],
@@ -12,45 +15,60 @@ const healthQuery = queryOptions({
 });
 
 export const indexRoute = createRoute({
-  getParentRoute: () => rootRoute,
+  getParentRoute: () => authedRoute,
   path: '/',
   component: SystemStatus,
 });
+
+const componentNames: Record<string, string> = {
+  app: 'App',
+  database: 'Database',
+  queue: 'Job queue',
+};
 
 function SystemStatus() {
   const { data, error, isPending } = useQuery(healthQuery);
 
   return (
-    <section className="space-y-4">
-      <h1 className="text-2xl font-semibold">System status</h1>
-      {isPending && <p className="text-muted-foreground">Checking…</p>}
-      {error && <p className="text-destructive">Could not reach the server: {error.message}</p>}
-      {data && (
-        <>
-          <ul className="divide-y rounded-lg border bg-card">
-            {Object.entries(data.checks).map(([name, status]) => (
-              <li key={name} className="flex items-center justify-between px-4 py-3">
-                <span className="capitalize">{name}</span>
-                <StatusBadge status={status} />
-              </li>
-            ))}
-          </ul>
-          <p className="text-sm text-muted-foreground">Version {data.version}</p>
-        </>
+    <>
+      <PageHeader
+        title="System status"
+        caption={data ? `Version ${data.version}. Checks again every 15 seconds.` : undefined}
+      />
+      {isPending && <p className="m-0 text-ink-muted">Checking…</p>}
+      {error && (
+        <ErrorMessage
+          error={`The status check failed (${error.message}). Check that the app container is running.`}
+        />
       )}
-    </section>
+      {data && (
+        <Table>
+          <thead>
+            <tr>
+              <Th>Component</Th>
+              <Th>Status</Th>
+            </tr>
+          </thead>
+          <tbody>
+            {Object.entries(data.checks).map(([name, status]) => (
+              <tr key={name}>
+                <Td>{componentNames[name] ?? name}</Td>
+                <Td>
+                  <HealthBadge status={status} />
+                </Td>
+              </tr>
+            ))}
+          </tbody>
+        </Table>
+      )}
+    </>
   );
 }
 
-function StatusBadge({ status }: { status: ComponentStatus }) {
-  return (
-    <span
-      className={cn(
-        'rounded-full px-2 py-0.5 text-sm font-medium',
-        status === 'ok' ? 'text-success' : 'text-destructive',
-      )}
-    >
-      {status === 'ok' ? 'OK' : 'Error'}
-    </span>
+function HealthBadge({ status }: { status: ComponentStatus }) {
+  return status === 'ok' ? (
+    <StatusBadge tone="success">OK</StatusBadge>
+  ) : (
+    <StatusBadge tone="danger">Error</StatusBadge>
   );
 }

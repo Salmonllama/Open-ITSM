@@ -2,9 +2,10 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import pino from 'pino';
 import type pg from 'pg';
 import type { PgBoss } from 'pg-boss';
-import { buildApp } from '../src/app.js';
-import { checkDatabase, createPool } from '../src/db.js';
+import type { buildApp } from '../src/app.js';
+import { checkDatabase, createDb, createPool } from '../src/db/client.js';
 import { checkQueue, createQueue } from '../src/queue.js';
+import { makeApp } from './helpers/app.js';
 
 // Runs against a real PostgreSQL when TEST_DATABASE_URL is set (CI always sets it).
 const databaseUrl = process.env.TEST_DATABASE_URL ?? '';
@@ -18,9 +19,8 @@ describe.skipIf(!databaseUrl)('GET /healthz against PostgreSQL', () => {
     pool = createPool(databaseUrl);
     queue = createQueue(databaseUrl, pino({ level: 'silent' }));
     await queue.start();
-    app = await buildApp({
-      version: 'test',
-      logger: false,
+    app = await makeApp({
+      db: createDb(pool),
       checks: { database: () => checkDatabase(pool), queue: () => checkQueue(queue) },
     });
   });

@@ -5,3 +5,5 @@ coverage
 apps/web/src/routeTree.gen.ts
 docs/IMPLEMENTATION.md
 docs/PRODUCT_OVERVIEW.md
+docs/open-itsm-brand.md
+apps/server/drizzle/meta

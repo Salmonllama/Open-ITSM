@@ -1,16 +1,18 @@
 # CLAUDE.md
 
 Open ITSM is a free, self-hosted ITSM (asset management and email ticketing) for IT teams of 1 to
-10 technicians. Read both before starting work: `docs/PRODUCT_OVERVIEW.md` defines v1 scope (and
+10 technicians. Read these before starting work: `docs/PRODUCT_OVERVIEW.md` defines v1 scope (and
 what is out of scope); `docs/IMPLEMENTATION.md` fixes the stack, data model, build order and
-acceptance criteria.
+acceptance criteria; `docs/open-itsm-brand.md` links the design system (tokens, components,
+voice, logo) and the page mockups that every screen must follow.
 
 ## Status
 
-| Milestone                                                               | State                    |
-| ----------------------------------------------------------------------- | ------------------------ |
-| M0 Scaffold, image, compose, `/healthz`, CI, LICENSE, CLAUDE.md         | Done (CI green on PR #1) |
-| M1 Migrations, setup wizard, local login, roles, sessions, recovery CLI | Next                     |
+| Milestone                                                               | State                                                   |
+| ----------------------------------------------------------------------- | ------------------------------------------------------- |
+| M0 Scaffold, image, compose, `/healthz`, CI, LICENSE, CLAUDE.md         | Done (CI green on PR #1)                                |
+| M1 Migrations, setup wizard, local login, roles, sessions, recovery CLI | Done (CI green on PR #2; restyled to the design system) |
+| M2 Asset types, custom fields, asset CRUD, unique numbers, CSV import   | Next                                                    |
 
 Update this table when a milestone is committed.
 
@@ -53,6 +55,14 @@ TEST_DATABASE_URL=postgres://postgres:test@localhost:5433/itsm_test pnpm test
 # Full stack from this checkout on https://localhost (Caddy internal CA)
 docker compose -f compose.yml -f compose.build.yml up -d --build
 scripts/compose-smoke.sh     # what CI runs: build, start, check /healthz through Caddy, tear down
+
+# Database schema changes: edit apps/server/src/db/schema.ts, then generate a SQL migration
+pnpm --filter @open-itsm/server db:generate --name <change>
+# Raw SQL (triggers, functions): drizzle-kit generate --custom --name <change>, then fill it in
+
+# Recovery CLI (in production: docker compose exec app itsm <command>)
+pnpm --filter @open-itsm/server cli list-users
+pnpm --filter @open-itsm/server cli reset-password admin@example.com [--enable]
 ```
 
 `pnpm dev` reads `../../.env` for the server if it exists; set `DATABASE_URL` to a reachable
@@ -66,8 +76,20 @@ apps/server       Fastify API; also serves the built web UI from WEB_ROOT
   src/app.ts      buildApp(): plugins, routes, static/SPA fallback (tests call this directly)
   src/config.ts   env parsing with zod; errors never echo values
   src/health.ts   GET /healthz (app, database, queue; 503 when any is down)
-  test/           vitest; *.integration.test.ts need TEST_DATABASE_URL
-apps/web          React + Vite + TanStack Router/Query + Tailwind v4, shadcn/ui-ready
+  src/db/         schema.ts (Drizzle tables), client.ts (pool, db, runMigrations)
+  src/auth/       password (argon2id), sessions, setup token, http (cookie, CSRF, requireRole)
+  src/routes/     setup, auth (login/logout/session), users (admin only)
+  src/audit.ts    append-only audit log writer
+  src/recovery.ts recovery commands; src/cli.ts is the `itsm` entrypoint in the image
+  drizzle/        generated SQL migrations, applied at startup in one transaction
+  test/           vitest; *.integration.test.ts need TEST_DATABASE_URL (each file gets its own DB)
+apps/web          React + Vite + TanStack Router/Query + Tailwind v4
+  src/index.css   design-system tokens (light, dark, OS-dark), Tailwind colour mappings, type-* styles
+  src/components/ ui/ (Button, Input/Select/Label, Card/ErrorMessage, StatusBadge, Table), FormField,
+                  PageHeader, ConfirmDialog, Logo, AuthLayout, ThemeSelect
+  src/routes/     setup, login, authed layout (sidebar shell; redirects to setup/login), index, admin-users
+  src/lib/        api.ts (fetch wrapper, CSRF header), queries.ts, theme.ts, roles.ts
+  public/brand/   logo SVGs from the design system (lockup, reversed, mark, favicon, app icon)
 packages/shared   zod schemas and types shared by server and web
 compose.yml       app + db + caddy; the file operators download (Caddyfile is inline)
 compose.build.yml override that builds the app image from the checkout
@@ -88,8 +110,9 @@ Dockerfile        multi-stage; runtime runs as `node`, files root-owned
   so client-side routes work.
 - Logs are pino JSON to stdout; `authorization`, `cookie` and `set-cookie` are redacted.
 - Dependencies are pinned to exact versions (`.npmrc` `save-exact=true`) and by the lockfile.
-- Prettier: 100 columns, single quotes, trailing commas. `docs/IMPLEMENTATION.md` is excluded
-  from formatting because it is maintained by hand.
+- Prettier: 100 columns, single quotes, trailing commas. `docs/IMPLEMENTATION.md`,
+  `docs/PRODUCT_OVERVIEW.md` and `docs/open-itsm-brand.md` are excluded from formatting because
+  they are maintained by hand.
 
 ## Decisions
 
@@ -116,12 +139,69 @@ Dockerfile        multi-stage; runtime runs as `node`, files root-owned
   release workflow that publishes multi-arch images is M11; CI builds but does not push.
 - **Docker production deps** come from `pnpm install --prod --filter "@open-itsm/server..."`
   against the lockfile rather than `pnpm deploy`, whose legacy mode ignores the lockfile.
-- **shadcn/ui:** `apps/web/components.json`, `src/lib/utils.ts` (`cn`) and theme tokens in
-  `src/index.css` are in place; add components with the shadcn CLI as screens need them.
+- **Migrations** are Drizzle SQL files in `apps/server/drizzle`, applied by `runMigrations` at
+  startup before anything else. Drizzle runs all pending files in one transaction, so a failure
+  rolls back and the app exits without changing data. (The pre-migration backup is M11.)
+- **Rules enforced in the database:** unique emails stored lowercase (check constraint), role
+  enum, non-negative failed-login count, and an append-only `audit_log` (triggers reject UPDATE,
+  DELETE and TRUNCATE). Users are disabled, never deleted; audit FKs to users have no cascade.
+- **Passwords:** argon2id via Node's built-in `crypto.argon2` (no native dependency), OWASP
+  parameters m=19456 KiB, t=2, p=1, stored as PHC strings. Minimum 12 characters, maximum 256,
+  no composition rules (user's choice). Unknown emails still run a dummy verify to keep timing
+  equal.
+- **Sessions:** random 32-byte token in the `__Host-itsm_session` cookie (HttpOnly, Secure,
+  SameSite=Lax); the DB stores only HMAC-SHA256(SESSION_SECRET, token). 12 h idle, 7 days max
+  (user's choice). Disabling a user or setting their password revokes all their sessions, with no
+  exception for the caller's own: resetting your own password signs you out too (review
+  decision on PR #2, so a compromised session cannot survive a reset). Role changes
+  apply on the next request because the user row is joined on every lookup. The session lookup
+  runs only for `/api/*` requests.
+- **CSRF:** every non-GET request is refused if its `Origin` (or `Sec-Fetch-Site`) is another
+  site. Requests with a session must also send `x-csrf-token` matching the session's token
+  (from `GET /api/auth/session` or the login response). Login and setup are `origin-only`.
+- **Login protection:** 10 attempts per minute per IP (`@fastify/rate-limit`, in memory, login
+  and setup only) plus account lockout for 15 minutes after 5 consecutive failures. Locked
+  accounts get 429 "try again later"; unknown, disabled and wrong-password all get the same 401.
+- **Setup wizard:** works only while `users` is empty. A one-time token is generated at startup
+  in memory and logged at warn level; `POST /api/setup` checks "no users" and inserts under a
+  Postgres advisory lock, so concurrent attempts cannot both win. A restart issues a new token.
+- **User admin (M1, user's choice):** admins list users, create local admin/technician
+  accounts, change role, disable/enable and set passwords. At least one active admin must
+  remain. Local end-user accounts cannot be created (end users arrive in M10 via Entra ID or
+  email links). Self-service password change is in `docs/IDEAS.md`.
+- **Recovery CLI:** `itsm list-users` and `itsm reset-password <email> [--enable]` (prints a
+  random password once, clears lockout, revokes sessions). The "switch off Entra ID sign-in"
+  command lands with Entra ID in M9.
+- **New dependencies in M1:** `@fastify/cookie` (Fastify has no cookie parsing),
+  `@fastify/rate-limit` (per-IP throttling) and `drizzle-kit` (dev, generates migrations).
+- **Design system (Oct 2026):** `docs/open-itsm-brand.md` links the source of truth; where the
+  mockups and the design system disagree, the design system wins. Tokens live in
+  `src/index.css` as CSS variables (light default; dark under `[data-theme='dark']` and under
+  `prefers-color-scheme: dark` unless `data-theme='light'`) and map to Tailwind colours
+  (`bg-surface-raised`, `text-ink-muted`, `border-line-strong`, `bg-pine`, `text-danger`, ...).
+  Type styles are `type-display|title|heading|body|label|caption|id|code` (named `type-*`, not
+  `text-*`, so tailwind-merge in `cn` does not drop them next to a colour class). Radius
+  sm/md/lg = 4/6/10 px. Components in `src/components/ui` are hand-written to match the design
+  system's reference components (Button primary/secondary/ghost/danger and sm; StatusBadge with
+  word + 12px shape + colour; TextField with hint/error and `aria-invalid`). One primary button
+  per view; a danger action confirms in a `ConfirmDialog` (native `<dialog>`) that names the
+  thing. Copy follows the design system's voice: what happened, then what to do; sentence case;
+  "you", never "we"; no exclamation marks. shadcn's `components.json` stays for later CLI use.
+- **Shell:** sidebar nav from the mockups (lockup at 28px, Lucide icons at 20px, selected item
+  pine-soft with `aria-current="page"`, user name, role and Sign out in the footer); main area
+  with 32px padding. Only pages that exist get nav items (Status, and Users for admins).
+- **Theme:** follows the OS by default; the sidebar's Theme select overrides it per browser
+  (`localStorage` key `open-itsm-theme`, applied in `main.tsx` before render). Storing it per user
+  is in `docs/IDEAS.md`.
+- **Fonts:** Atkinson Hyperlegible Next (400/600/700) and Mono (400/500) are self-hosted from
+  `@fontsource/*` packages, never Google Fonts, so installs need no outside requests.
+- **New dependencies (design pass):** `@fontsource/atkinson-hyperlegible-next` and
+  `@fontsource/atkinson-hyperlegible-mono` (the brand fonts, self-hosted) and `lucide-react`
+  (the design system's icon set).
 
 ## Open questions
 
 - GPL v3 is tentative until the first release (AGPL may be revisited if hosted SaaS happens).
   Do not change `LICENSE` without being told.
-- Admin recovery when SSO is misconfigured and the admin password is lost: answered by the
-  host-level recovery CLI (M1), confirmed in `docs/IMPLEMENTATION.md`.
+- Admin recovery when SSO is misconfigured and the admin password is lost: the host-level
+  recovery CLI (`itsm reset-password`, M1); the SSO switch-off command comes with M9.

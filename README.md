@@ -15,7 +15,9 @@ docker compose -f compose.yml -f compose.build.yml up -d --build
 curl -k https://localhost/healthz
 ```
 
-Set `APP_HOSTNAME=localhost` in `.env` for a local trial. Published images and an install
+Set `APP_HOSTNAME=localhost` in `.env` for a local trial. Open the site and enter the setup
+token from `docker compose logs app` to create the first administrator. If an admin password is
+lost, `docker compose exec app itsm reset-password <email>` sets a new one. Published images and an install
 script arrive with the alpha release.
 
 ## Development
