@@ -2,6 +2,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { makeApp } from './helpers/app.js';
 import { createTestDatabase, testDatabaseUrl, type TestDatabase } from './helpers/db.js';
 import { createUser, PASSWORD, signIn } from './helpers/seed.js';
+import { SESSION_COOKIE } from '../src/auth/http.js';
 
 describe.skipIf(!testDatabaseUrl)('roles and user administration', () => {
   let t: TestDatabase;
@@ -144,7 +145,7 @@ describe.skipIf(!testDatabaseUrl)('roles and user administration', () => {
     expect((await theirs.request({ method: 'GET', url: '/api/users' })).statusCode).toBe(200);
   });
 
-  it('resets a password and signs the user out, keeping the admin’s own session', async () => {
+  it('resets a password and signs the user out everywhere', async () => {
     const target = await createUser(t.db, 'reset-me@example.com', 'technician');
     const theirs = await signIn(app, 'reset-me@example.com');
     const admin = await signIn(app, 'root@example.com');
@@ -159,15 +160,26 @@ describe.skipIf(!testDatabaseUrl)('roles and user administration', () => {
     );
     expect((await admin.request({ method: 'GET', url: '/api/auth/session' })).statusCode).toBe(200);
     await signIn(app, 'reset-me@example.com', 'a brand new password');
+  });
 
-    // Resetting your own password keeps the session you used to do it.
-    const self = await admin.request({
+  it('signs you out everywhere, this session included, when you reset your own password', async () => {
+    const self = await createUser(t.db, 'self-reset@example.com', 'admin');
+    const here = await signIn(app, 'self-reset@example.com');
+    const elsewhere = await signIn(app, 'self-reset@example.com');
+    const res = await here.request({
       method: 'POST',
-      url: `/api/users/${adminId}/password`,
-      payload: { password: PASSWORD },
+      url: `/api/users/${self.id}/password`,
+      payload: { password: 'another new password' },
     });
-    expect(self.statusCode).toBe(204);
-    expect((await admin.request({ method: 'GET', url: '/api/auth/session' })).statusCode).toBe(200);
+    expect(res.statusCode).toBe(204);
+    const cleared = res.cookies.find((c) => c.name === SESSION_COOKIE);
+    expect(cleared?.value).toBe('');
+    for (const session of [here, elsewhere]) {
+      expect((await session.request({ method: 'GET', url: '/api/auth/session' })).statusCode).toBe(
+        401,
+      );
+    }
+    await signIn(app, 'self-reset@example.com', 'another new password');
   });
 
   it('returns 404 for an unknown user and 400 for a malformed id', async () => {

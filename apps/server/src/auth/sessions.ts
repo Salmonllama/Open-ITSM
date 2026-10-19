@@ -1,5 +1,5 @@
 import { createHmac, randomBytes } from 'node:crypto';
-import { and, eq, gt, isNull, ne, sql } from 'drizzle-orm';
+import { and, eq, gt, isNull, sql } from 'drizzle-orm';
 import type { Db } from '../db/client.js';
 import { sessions, users } from '../db/schema.js';
 
@@ -79,21 +79,11 @@ export class SessionStore {
       .where(and(eq(sessions.id, sessionId), isNull(sessions.revokedAt)));
   }
 
-  /** Revokes every open session of a user, optionally keeping one (the caller's own). */
-  async revokeAllForUser(
-    userId: string,
-    executor: Pick<Db, 'update'> = this.db,
-    exceptSessionId?: string,
-  ): Promise<void> {
+  /** Revokes every open session of a user, with no exceptions (including the caller's own). */
+  async revokeAllForUser(userId: string, executor: Pick<Db, 'update'> = this.db): Promise<void> {
     await executor
       .update(sessions)
       .set({ revokedAt: sql`now()` })
-      .where(
-        and(
-          eq(sessions.userId, userId),
-          isNull(sessions.revokedAt),
-          exceptSessionId ? ne(sessions.id, exceptSessionId) : undefined,
-        ),
-      );
+      .where(and(eq(sessions.userId, userId), isNull(sessions.revokedAt)));
   }
 }

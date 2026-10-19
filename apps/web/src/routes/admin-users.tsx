@@ -6,7 +6,7 @@ import {
   type UpdateUserRequest,
 } from '@open-itsm/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { createRoute, redirect } from '@tanstack/react-router';
+import { createRoute, redirect, useNavigate } from '@tanstack/react-router';
 import { UserPlus } from 'lucide-react';
 import { Fragment, useId, useState, type FormEvent } from 'react';
 import { ConfirmDialog } from '@/components/confirm-dialog';
@@ -18,7 +18,7 @@ import { Label, Select } from '@/components/ui/input';
 import { StatusBadge } from '@/components/ui/status-badge';
 import { Table, Td, Th } from '@/components/ui/table';
 import { apiRequest } from '@/lib/api';
-import { sessionQuery, usersQuery } from '@/lib/queries';
+import { sessionQuery, storeSession, usersQuery } from '@/lib/queries';
 import { roleLabels } from '@/lib/roles';
 import { authedRoute } from './authed';
 
@@ -141,6 +141,7 @@ function CreateUserForm({ onDone }: { onDone: () => void }) {
 
 function UserRow({ user, isSelf }: { user: AdminUser; isSelf: boolean }) {
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
   const [settingPassword, setSettingPassword] = useState(false);
   const [confirmingDisable, setConfirmingDisable] = useState(false);
   const update = useMutation({
@@ -152,7 +153,14 @@ function UserRow({ user, isSelf }: { user: AdminUser; isSelf: boolean }) {
   const setPassword = useMutation({
     mutationFn: (password: string) =>
       apiRequest('POST', `/api/users/${user.id}/password`, { body: { password } }),
-    onSuccess: () => setSettingPassword(false),
+    onSuccess: async () => {
+      setSettingPassword(false);
+      if (!isSelf) return;
+      // The server ended every session of yours, this one included.
+      storeSession(queryClient, null);
+      queryClient.removeQueries({ predicate: (q) => q.queryKey[0] !== 'session' });
+      await navigate({ to: '/login', search: { redirect: undefined } });
+    },
   });
 
   function onPasswordSubmit(event: FormEvent<HTMLFormElement>) {
@@ -258,7 +266,11 @@ function UserRow({ user, isSelf }: { user: AdminUser; isSelf: boolean }) {
                   required
                   minLength={PASSWORD_MIN_LENGTH}
                   autoComplete="new-password"
-                  hint={`At least ${PASSWORD_MIN_LENGTH} characters. This signs them out everywhere and clears any lockout.`}
+                  hint={
+                    isSelf
+                      ? `At least ${PASSWORD_MIN_LENGTH} characters. This signs you out everywhere, including here; sign in again with the new password.`
+                      : `At least ${PASSWORD_MIN_LENGTH} characters. This signs them out everywhere and clears any lockout.`
+                  }
                 />
               </div>
               <Button type="submit" disabled={setPassword.isPending}>

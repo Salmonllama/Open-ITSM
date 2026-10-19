@@ -151,7 +151,9 @@ Dockerfile        multi-stage; runtime runs as `node`, files root-owned
   equal.
 - **Sessions:** random 32-byte token in the `__Host-itsm_session` cookie (HttpOnly, Secure,
   SameSite=Lax); the DB stores only HMAC-SHA256(SESSION_SECRET, token). 12 h idle, 7 days max
-  (user's choice). Disabling a user or setting their password revokes their sessions. Role changes
+  (user's choice). Disabling a user or setting their password revokes all their sessions, with no
+  exception for the caller's own: resetting your own password signs you out too (review
+  decision on PR #2, so a compromised session cannot survive a reset). Role changes
   apply on the next request because the user row is joined on every lookup. The session lookup
   runs only for `/api/*` requests.
 - **CSRF:** every non-GET request is refused if its `Origin` (or `Sec-Fetch-Site`) is another

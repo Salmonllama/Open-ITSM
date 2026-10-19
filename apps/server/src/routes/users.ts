@@ -11,7 +11,7 @@ import type { FastifyInstance } from 'fastify';
 import type { ZodTypeProvider } from 'fastify-type-provider-zod';
 import { z } from 'zod';
 import { audit } from '../audit.js';
-import { requireRole } from '../auth/http.js';
+import { clearSessionCookie, requireRole } from '../auth/http.js';
 import { hashPassword } from '../auth/password.js';
 import { users } from '../db/schema.js';
 import { USERS_LOCK_KEY, type RouteDeps } from './deps.js';
@@ -184,7 +184,7 @@ export function registerUserRoutes(app: FastifyInstance, { db, sessions }: Route
           .where(eq(users.id, id))
           .returning({ id: users.id });
         if (!row) return false;
-        await sessions.revokeAllForUser(id, tx, request.session?.id);
+        await sessions.revokeAllForUser(id, tx);
         await audit(tx, {
           action: 'user.password_reset',
           actorUserId: request.session?.user.id,
@@ -195,6 +195,8 @@ export function registerUserRoutes(app: FastifyInstance, { db, sessions }: Route
         return true;
       });
       if (!found) return reply.code(404).send(NOT_FOUND);
+      // Setting your own password ends this session too, so sign-in starts again.
+      if (id === request.session?.user.id) clearSessionCookie(reply);
       return reply.code(204).send();
     },
   );
