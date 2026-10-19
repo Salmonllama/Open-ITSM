@@ -10,7 +10,7 @@ acceptance criteria.
 | Milestone                                                               | State                    |
 | ----------------------------------------------------------------------- | ------------------------ |
 | M0 Scaffold, image, compose, `/healthz`, CI, LICENSE, CLAUDE.md         | Done (CI green on PR #1) |
-| M1 Migrations, setup wizard, local login, roles, sessions, recovery CLI | Built; awaiting green CI |
+| M1 Migrations, setup wizard, local login, roles, sessions, recovery CLI | Done (CI green on PR #2) |
 | M2 Asset types, custom fields, asset CRUD, unique numbers, CSV import   | Next                     |
 
 Update this table when a milestone is committed.
