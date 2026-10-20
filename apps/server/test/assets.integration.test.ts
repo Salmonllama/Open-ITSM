@@ -146,6 +146,23 @@ describe.skipIf(!testDatabaseUrl)('asset types, assets and CSV import', () => {
       ).toBe(204);
       const after = await tech.request({ method: 'GET', url: `/api/assets/${asset.json().id}` });
       expect(after.json().fields).toEqual({});
+      const history = await tech.request({
+        method: 'GET',
+        url: `/api/assets/${asset.json().id}/history`,
+      });
+      expect(history.json().activity).toContainEqual(
+        expect.objectContaining({ kind: 'edited', subject: 'Colour' }),
+      );
+      const { rows: auditRows } = await t.pool.query(
+        `select details from audit_log where action = 'asset_type_field.deleted' order by id desc limit 1`,
+      );
+      expect(auditRows[0]?.details).toMatchObject({
+        assetTypeId: type.id,
+        fieldId: colour.id,
+        fieldKey: 'colour',
+        label: 'Colour',
+        affectedAssetCount: 1,
+      });
 
       const inUse = await tech.request({ method: 'DELETE', url: `/api/asset-types/${type.id}` });
       expect(inUse.statusCode).toBe(409);

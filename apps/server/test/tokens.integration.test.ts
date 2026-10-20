@@ -1,5 +1,5 @@
 import { Writable } from 'node:stream';
-import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { SESSION_COOKIE } from '../src/auth/http.js';
 import { loggerOptions } from '../src/logging.js';
 import { makeApp } from './helpers/app.js';
@@ -120,7 +120,7 @@ describe.skipIf(!testDatabaseUrl)('API tokens and service accounts', () => {
     );
   });
 
-  it('lets a write token change assets without a CSRF token and audits each change', async () => {
+  it('audits token writes before allowing their changes', async () => {
     const admin = await signIn(app, 'root@example.com');
     const { token, accountId } = await issueToken(admin, ['assets:write', 'assets:read']);
     const res = await withToken(app, token, {
@@ -129,19 +129,46 @@ describe.skipIf(!testDatabaseUrl)('API tokens and service accounts', () => {
       payload: { name: 'Token type', prefix: 'TOK' },
     });
     expect(res.statusCode).toBe(201);
-    // The record is written once the response has gone out.
-    const mine = await vi.waitFor(async () => {
-      const rows = (await auditActions('token.request')).filter(
-        (r) => r.actor_service_account_id === accountId,
-      );
-      expect(rows).toHaveLength(1);
-      return rows;
-    });
-    expect(mine[0]?.details).toMatchObject({
+    const [mine] = (await auditActions('token.request')).filter(
+      (r) => r.actor_service_account_id === accountId,
+    );
+    expect(mine?.details).toMatchObject({
       method: 'POST',
       route: '/api/asset-types',
-      status: 201,
     });
+  });
+
+  it('refuses a token write when its audit record cannot be stored', async () => {
+    const admin = await signIn(app, 'root@example.com');
+    const { token } = await issueToken(admin, ['assets:write', 'assets:read']);
+    await t.pool.query(`
+      CREATE FUNCTION reject_token_request_audit() RETURNS trigger LANGUAGE plpgsql AS $$
+      BEGIN
+        IF NEW.action = 'token.request' THEN
+          RAISE EXCEPTION 'audit unavailable';
+        END IF;
+        RETURN NEW;
+      END;
+      $$;
+      CREATE TRIGGER fail_token_request_audit BEFORE INSERT ON audit_log
+        FOR EACH ROW EXECUTE FUNCTION reject_token_request_audit();
+    `);
+    try {
+      const res = await withToken(app, token, {
+        method: 'POST',
+        url: '/api/asset-types',
+        payload: { name: 'Unaudited type', prefix: 'UNA' },
+      });
+      expect(res.statusCode).toBe(500);
+      expect(
+        (await withToken(app, token, { method: 'GET', url: '/api/asset-types' })).json(),
+      ).not.toEqual(expect.arrayContaining([expect.objectContaining({ name: 'Unaudited type' })]));
+    } finally {
+      await t.pool.query(`
+        DROP TRIGGER fail_token_request_audit ON audit_log;
+        DROP FUNCTION reject_token_request_audit();
+      `);
+    }
   });
 
   it('refuses expired, revoked and disabled-account tokens', async () => {

@@ -70,7 +70,9 @@ configs:
 
       {$$APP_HOSTNAME} {
       	encode zstd gzip
-      	reverse_proxy app:3000
+        reverse_proxy app:3000 {
+          header_up X-Forwarded-For {remote_ip}
+        }
       }
 
 networks:
