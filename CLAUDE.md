@@ -13,7 +13,7 @@ voice, logo) and the page mockups that every screen must follow.
 | M0 Scaffold, image, compose, `/healthz`, CI, LICENSE, CLAUDE.md         | Done (CI green on PR #1)                                |
 | M1 Migrations, setup wizard, local login, roles, sessions, recovery CLI | Done (CI green on PR #2; restyled to the design system) |
 | M2 Asset types, fields, assets, CSV import, service accounts, tokens    | Done (CI green on PR #3)                                |
-| M3 Status rules, assignment history, repairs, asset activity            | Built; PR open, waiting on CI and review                |
+| M3 Status rules, assignment history, repairs, asset activity            | Done (CI green on PR #5)                                |
 
 Update this table when a milestone is committed.
 
@@ -67,10 +67,11 @@ pnpm --filter @open-itsm/server cli reset-password admin@example.com [--enable]
 ```
 
 `pnpm dev` reads `../../.env` for the server if it exists; set `DATABASE_URL` to a reachable
-database (for example the test container above). Writes through Vite on :5173 are refused by the
-CSRF origin check (Vite's proxy rewrites `Host`), so click-through checks of writes use the built
-app instead: `pnpm build`, then `WEB_ROOT=apps/web/dist node dist/server.js` in `apps/server`
-with the `.env` values exported, on http://localhost:3000.
+database (for example the test container above). Sign in and click through writes on
+http://localhost:5173: the Vite proxy keeps the browser's `Host` (`changeOrigin: false` in
+`apps/web/vite.config.ts`), so the CSRF origin check passes. Do not switch it back to the string
+shorthand, which rewrites `Host` and gets every write refused. The session cookie is `Secure`;
+Chrome and Firefox accept that on http://localhost, Safari may not.
 
 ## Layout
 
