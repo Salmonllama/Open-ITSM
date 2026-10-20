@@ -31,3 +31,11 @@ says so.
   the expected columns and value formats. A "Download template" link on the import page could
   serve a CSV for the chosen asset type, with the built-in and custom field columns as headers
   and an example row, so the file is right before the first upload.
+
+## Locations
+
+- **Managed locations.** Locations are free text, so the same site can be typed several ways
+  and nothing links an asset to the people who work there. A technician could create
+  locations once and pick them from a list on both assets and end users, which would make
+  locations consistent and allow filtering assets and people by site. Existing free-text
+  values would need a one-time mapping to the new records.
