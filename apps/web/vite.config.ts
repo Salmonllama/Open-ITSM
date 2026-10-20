@@ -4,7 +4,12 @@ import tailwindcss from '@tailwindcss/vite';
 import react from '@vitejs/plugin-react';
 import { defineConfig } from 'vite';
 
-const apiTarget = process.env.API_URL ?? 'http://localhost:3000';
+// Keep the browser's Host so the server's CSRF origin check sees the same site as Origin.
+// (The string shorthand would set changeOrigin: true and every write would be refused.)
+const apiProxy = {
+  target: process.env.API_URL ?? 'http://localhost:3000',
+  changeOrigin: false,
+};
 
 export default defineConfig({
   plugins: [react(), tailwindcss()],
@@ -18,8 +23,8 @@ export default defineConfig({
   },
   server: {
     proxy: {
-      '/api': apiTarget,
-      '/healthz': apiTarget,
+      '/api': apiProxy,
+      '/healthz': apiProxy,
     },
   },
   test: {
