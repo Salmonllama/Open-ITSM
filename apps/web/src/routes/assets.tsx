@@ -1,7 +1,7 @@
 import { ASSET_STATUSES, assetStatusSchema, type AssetStatus } from '@open-itsm/shared';
 import { useQuery } from '@tanstack/react-query';
 import { Link, createRoute, useNavigate } from '@tanstack/react-router';
-import { Plus, Upload } from 'lucide-react';
+import { Plus, QrCode, Upload } from 'lucide-react';
 import { useEffect, useId, useState } from 'react';
 import { z } from 'zod';
 import { PageHeader } from '@/components/page-header';
@@ -52,7 +52,22 @@ function AssetsPage() {
     void navigate({ search: (prev) => ({ ...prev, ...changes, page: undefined }), replace: true });
   }
 
+  // Assets ticked for printing, kept across pages and filters until printed or cleared.
+  const [selected, setSelected] = useState<ReadonlySet<string>>(new Set());
+  function toggle(ids: string[], on: boolean) {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      for (const id of ids) {
+        if (on) next.add(id);
+        else next.delete(id);
+      }
+      return next;
+    });
+  }
+
   const data = list.data;
+  const pageIds = data?.items.map((a) => a.id) ?? [];
+  const allOnPage = pageIds.length > 0 && pageIds.every((id) => selected.has(id));
   const typeCount = types.data?.length ?? 0;
   const first = data && data.total > 0 ? (page - 1) * PAGE_SIZE + 1 : 0;
   const last = data ? Math.min(page * PAGE_SIZE, data.total) : 0;
@@ -68,6 +83,25 @@ function AssetsPage() {
         }
         actions={
           <>
+            <Link
+              to="/assets/labels"
+              search={
+                selected.size > 0
+                  ? { ids: [...selected].join(',') }
+                  : { q: search.q, status: search.status, typeId: search.typeId }
+              }
+              className={buttonClasses()}
+              title={
+                selected.size > 0
+                  ? undefined
+                  : 'Prints a tag for every asset that matches the search and filters'
+              }
+            >
+              <QrCode aria-hidden="true" strokeWidth={1.75} />
+              {selected.size > 0
+                ? `Print ${selected.size} ${selected.size === 1 ? 'tag' : 'tags'}`
+                : 'Print tags'}
+            </Link>
             <Link to="/assets/import" className={buttonClasses()}>
               <Upload aria-hidden="true" strokeWidth={1.75} />
               Import
@@ -106,6 +140,15 @@ function AssetsPage() {
         />
       </div>
 
+      {selected.size > 0 && (
+        <p className="m-0 flex flex-wrap items-center gap-3 type-caption text-ink-muted">
+          {selected.size} selected for printing.
+          <Button size="sm" variant="ghost" onClick={() => setSelected(new Set())}>
+            Clear selection
+          </Button>
+        </p>
+      )}
+
       <ErrorMessage error={list.error ?? types.error} />
       {list.isPending && <p className="m-0 text-ink-muted">Loading assets…</p>}
       {data && (
@@ -113,6 +156,16 @@ function AssetsPage() {
           <Table className="min-w-[640px]">
             <thead>
               <tr>
+                <Th className="w-10">
+                  <input
+                    type="checkbox"
+                    aria-label="Select every asset on this page for printing"
+                    checked={allOnPage}
+                    disabled={pageIds.length === 0}
+                    onChange={(e) => toggle(pageIds, e.target.checked)}
+                    className="size-4 cursor-pointer accent-pine"
+                  />
+                </Th>
                 <Th>Asset</Th>
                 <Th>Name</Th>
                 <Th>Type</Th>
@@ -123,6 +176,15 @@ function AssetsPage() {
             <tbody>
               {data.items.map((asset) => (
                 <tr key={asset.id}>
+                  <Td>
+                    <input
+                      type="checkbox"
+                      aria-label={`Select ${asset.number} for printing`}
+                      checked={selected.has(asset.id)}
+                      onChange={(e) => toggle([asset.id], e.target.checked)}
+                      className="size-4 cursor-pointer accent-pine"
+                    />
+                  </Td>
                   <Td className="whitespace-nowrap">
                     <Link
                       to="/assets/$assetId"
@@ -146,7 +208,7 @@ function AssetsPage() {
               ))}
               {data.items.length === 0 && (
                 <tr>
-                  <Td colSpan={5} className="text-ink-muted">
+                  <Td colSpan={6} className="text-ink-muted">
                     {search.q || search.status || search.typeId
                       ? 'No assets match these filters. Clear the search or choose another status or type.'
                       : 'No assets yet. Add one with New asset, or bring a spreadsheet in with Import.'}

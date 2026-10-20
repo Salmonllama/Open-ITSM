@@ -14,6 +14,7 @@ voice, logo) and the page mockups that every screen must follow.
 | M1 Migrations, setup wizard, local login, roles, sessions, recovery CLI | Done (CI green on PR #2; restyled to the design system) |
 | M2 Asset types, fields, assets, CSV import, service accounts, tokens    | Done (CI green on PR #3)                                |
 | M3 Status rules, assignment history, repairs, asset activity            | Done (CI green on PR #5)                                |
+| M4 QR tags, label printing, scan page with check in and out             | Done (CI green on PR #8)                                |
 
 Update this table when a milestone is committed.
 
@@ -103,8 +104,13 @@ apps/web          React + Vite + TanStack Router/Query + Tailwind v4
   src/components/asset-form.tsx  number, name, status and the type's custom fields
   src/components/asset-history.tsx  asset page cards (assigned to, assignment history, repairs,
                   activity) and the assign/return/repair/status dialogs
+  src/components/asset-tag.tsx  the printed tag (QR code drawn as an SVG path)
+  src/components/qr-camera.tsx  camera preview that reads QR codes
+  src/routes/asset-labels.tsx  print page (/assets/labels); scan.tsx is /scan and the tag
+                  route /a/<number>
   src/lib/        api.ts (fetch wrapper, CSRF header, CSV import), queries.ts, assets.ts (status
-                  tones, date and field formatting), theme.ts, roles.ts
+                  tones, date and field formatting), theme.ts, roles.ts, scan.ts (tag URLs, reading
+                  scans), labels.ts (print layouts)
   public/brand/   logo SVGs from the design system (lockup, reversed, mark, favicon, app icon)
 packages/shared   zod schemas and types shared by server and web (auth, assets, tokens)
 docs/api.md       operator notes for scripts: tokens, PowerShell and curl examples
@@ -207,6 +213,10 @@ Dockerfile        multi-stage; runtime runs as `node`, files root-owned
 - **Shell:** sidebar nav from the mockups (lockup at 28px, Lucide icons at 20px, selected item
   pine-soft with `aria-current="page"`, user name, role and Sign out in the footer); main area
   with 32px padding. Only pages that exist get nav items (Status, and Users for admins).
+  Below 768px (Tailwind `md`) the sidebar is replaced by a top bar with a menu button that opens
+  the same nav in a drawer from the left (native modal `<dialog>`: Escape, tapping outside or
+  choosing a link closes it; the slide is off under `prefers-reduced-motion`), and the main area
+  pads 16px.
 - **Theme:** follows the OS by default; the sidebar's Theme select overrides it per browser
   (`localStorage` key `open-itsm-theme`, applied in `main.tsx` before render). Storing it per user
   is in `docs/IDEAS.md`.
@@ -259,6 +269,29 @@ Dockerfile        multi-stage; runtime runs as `node`, files root-owned
   service account). Its rows cascade only when the asset itself is deleted (trigger allows the
   delete only once the asset row is gone). `GET /api/assets/:id/history` returns assignments,
   repairs and activity, newest first. All of this is under the asset scopes.
+- **Asset tags (M4, user's choice):** a tag's QR code holds `https://<host>/a/<asset number>`
+  (number URL-encoded, so `OLD/42` is `/a/OLD%2F42`), built from the address the tag is printed
+  from. `/a/*` is a client route that looks the number up (`GET /api/assets/by-number/:number`)
+  and opens the asset; signed-out visitors sign in first and land on it. Changing an asset's
+  number breaks its printed tag. The tag follows the design system's AssetTag: 2 × 0.75 in,
+  black on white, QR, number, "type · name", a fixed "Property of IT" line and a fixed help
+  line (a setting for both is in `docs/IDEAS.md`).
+- **Printing tags (M4, user's choice):** `/assets/labels` prints one tag per label for label
+  printers (`@page` 2 × 0.75 in) or sheets: Letter Avery 5160 (30) and A4 Avery L7160 (21), tag
+  centred on each label. It takes `ids` (asset page "Print tag", ticked rows on the asset list)
+  or the list's filters (nothing ticked), at most 1,000 tags. The layout is remembered per
+  browser (`localStorage` key `open-itsm-label-layout`). The sidebar is hidden in print.
+- **Scan page (M4, user's choice):** `/scan` reads a tag with the camera or from the "Asset
+  number or tag" field (USB scanners in keyboard mode type the URL and press Enter; a typed
+  number works too). Modes: Open asset (default), Check out (assigns to the person and/or
+  location entered once; refuses an asset already deployed) and Check in (returns to In stock;
+  refuses one not deployed). The camera uses the browser's `BarcodeDetector` where it has QR
+  support and lazy-loads jsQR otherwise; it needs https (or localhost). A code is handled once
+  while it stays in view.
+- **New dependencies in M4:** `qrcode-generator` (draws tag QR codes; no dependencies, the one
+  the design system's preview uses) and `jsqr` (reads QR codes in browsers without
+  `BarcodeDetector`, which includes Safari and Firefox). Nothing in the project drew or read QR
+  codes before.
 - **CSV import:** comma-separated, UTF-8 (BOM allowed), header row names columns (`Number`,
   `Name`, `Status` and field labels or keys, any case). All-or-nothing in one transaction, at
   most 5,000 rows; every problem is reported with its line and column (HTTP 422); `dryRun=true`

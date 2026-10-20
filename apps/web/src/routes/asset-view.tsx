@@ -1,9 +1,10 @@
 import { assetSchema, type UpdateAssetRequest } from '@open-itsm/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, createRoute, useNavigate } from '@tanstack/react-router';
-import { Pencil, Trash2, Undo2, UserCheck, Wrench } from 'lucide-react';
+import { Pencil, QrCode, Trash2, Undo2, UserCheck, Wrench } from 'lucide-react';
 import { useState } from 'react';
 import { AssetForm } from '@/components/asset-form';
+import { AssetTag } from '@/components/asset-tag';
 import {
   ActivityCard,
   AssetActionDialogs,
@@ -178,6 +179,22 @@ function AssetPage() {
         </div>
         <aside className="flex min-w-0 flex-[1_1_300px] flex-col gap-6">
           <CurrentAssignmentCard history={history.data} />
+          <Card className="flex flex-col gap-3">
+            <div className="flex items-center justify-between gap-2">
+              <h2 className="m-0 type-heading">Asset tag</h2>
+              <Link
+                to="/assets/labels"
+                search={{ ids: a.id }}
+                className={buttonClasses('secondary', 'sm')}
+              >
+                <QrCode aria-hidden="true" strokeWidth={1.75} />
+                Print tag
+              </Link>
+            </div>
+            <div className="[zoom:1.25]">
+              <AssetTag number={a.number} typeName={a.type.name} name={a.name} />
+            </div>
+          </Card>
           <ActivityCard history={history.data} />
         </aside>
       </div>

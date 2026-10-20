@@ -20,6 +20,15 @@ says so.
 - **CSV export.** Export the filtered asset list as CSV, in the same columns import reads, so a
   round trip through a spreadsheet works.
 
+## Asset tags and scanning
+
+- **Configurable tag text.** Tags print a fixed "Property of IT" line and a fixed help line
+  (M4, user's choice). An admin setting would let a team print its own name and contact.
+- **Start on a part-used sheet.** Sheet printing always starts at the first label. A "start at
+  label N" choice would use up sheets that already have gaps.
+- **Scans in the activity log.** The asset page mockup shows "Tag scanned at HQ, 3rd floor".
+  Opening an asset by scan records nothing today; a scan could log where and by whom.
+
 ## Appearance
 
 - **Theme choice per user.** The light/dark override is kept in the browser's `localStorage`, so

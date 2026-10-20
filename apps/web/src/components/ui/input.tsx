@@ -1,4 +1,4 @@
-import type { InputHTMLAttributes, LabelHTMLAttributes, SelectHTMLAttributes } from 'react';
+import type { ComponentProps, LabelHTMLAttributes, SelectHTMLAttributes } from 'react';
 import { cn } from '@/lib/utils';
 
 const field = cn(
@@ -8,11 +8,7 @@ const field = cn(
   'aria-invalid:border-2 aria-invalid:border-danger aria-invalid:px-[11px]',
 );
 
-export function Input({
-  className,
-  mono,
-  ...props
-}: InputHTMLAttributes<HTMLInputElement> & { mono?: boolean }) {
+export function Input({ className, mono, ...props }: ComponentProps<'input'> & { mono?: boolean }) {
   return <input className={cn(field, mono && 'font-mono font-medium', className)} {...props} />;
 }
 
