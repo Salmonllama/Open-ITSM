@@ -14,7 +14,7 @@ voice, logo) and the page mockups that every screen must follow.
 | M1 Migrations, setup wizard, local login, roles, sessions, recovery CLI | Done (CI green on PR #2; restyled to the design system) |
 | M2 Asset types, fields, assets, CSV import, service accounts, tokens    | Done (CI green on PR #3)                                |
 | M3 Status rules, assignment history, repairs, asset activity            | Done (CI green on PR #5)                                |
-| M4 QR tags, label printing, scan page with check in and out             | Built; PR open, waiting on CI and review                |
+| M4 QR tags, label printing, scan page with check in and out             | Done (CI green on PR #8)                                |
 
 Update this table when a milestone is committed.
 
