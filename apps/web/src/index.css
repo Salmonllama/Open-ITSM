@@ -219,6 +219,44 @@
   }
 }
 
+/* The phone menu drawer slides in from the left; people who ask for less motion get no slide. */
+.drawer {
+  translate: -100% 0;
+  transition:
+    translate 200ms ease-out,
+    overlay 200ms allow-discrete,
+    display 200ms allow-discrete;
+}
+.drawer[open] {
+  translate: 0 0;
+}
+@starting-style {
+  .drawer[open] {
+    translate: -100% 0;
+  }
+}
+.drawer::backdrop {
+  opacity: 0;
+  transition:
+    opacity 200ms ease-out,
+    overlay 200ms allow-discrete,
+    display 200ms allow-discrete;
+}
+.drawer[open]::backdrop {
+  opacity: 1;
+}
+@starting-style {
+  .drawer[open]::backdrop {
+    opacity: 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .drawer,
+  .drawer::backdrop {
+    transition: none;
+  }
+}
+
 /*
  * The printed asset tag (design system AssetTag): 2 × 0.75 in, black on white in every theme,
  * sized in physical units so it prints the same on a label printer and on a sheet.
