@@ -69,7 +69,7 @@ function isCrossOrigin(request: FastifyRequest): boolean {
   if (origin) {
     try {
       const from = new URL(origin);
-      const target = new URL(`${request.protocol}//${request.host}`);
+      const target = new URL(`${request.protocol}://${request.host}`);
       return target.origin !== from.origin;
     } catch {
       return true;

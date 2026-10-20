@@ -140,7 +140,7 @@ describe.skipIf(!testDatabaseUrl)('API tokens and service accounts', () => {
 
   it('refuses a token write when its audit record cannot be stored', async () => {
     const admin = await signIn(app, 'root@example.com');
-    const { token, accountId } = await issueToken(admin, ['assets:write', 'assets:read']);
+    const { token } = await issueToken(admin, ['assets:write', 'assets:read']);
     await t.pool.query(`
       CREATE FUNCTION reject_token_request_audit() RETURNS trigger LANGUAGE plpgsql AS $$
       BEGIN
