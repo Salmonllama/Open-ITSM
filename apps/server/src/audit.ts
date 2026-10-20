@@ -18,7 +18,8 @@ export type AuditAction =
   | 'token.failed'
   | 'token.request'
   | 'asset.deleted'
-  | 'asset_type.deleted';
+  | 'asset_type.deleted'
+  | 'asset_type_field.deleted';
 
 export type AuditEntry = {
   action: AuditAction;

@@ -69,8 +69,8 @@ function isCrossOrigin(request: FastifyRequest): boolean {
   if (origin) {
     try {
       const from = new URL(origin);
-      // Parse the Host header with the origin's scheme so default ports compare equal.
-      return new URL(`${from.protocol}//${request.host}`).host !== from.host;
+      const target = new URL(`${request.protocol}//${request.host}`);
+      return target.origin !== from.origin;
     } catch {
       return true;
     }
@@ -271,7 +271,21 @@ export async function registerAuth(app: FastifyInstance, deps: AuthDeps): Promis
 
   app.addHook('preHandler', async (request, reply) => {
     // Token requests carry no cookie, so a forged cross-site request cannot ride on them.
-    if (SAFE_METHODS.has(request.method) || request.apiToken) return;
+    if (SAFE_METHODS.has(request.method)) return;
+    if (request.apiToken) {
+      await audit(db, {
+        action: 'token.request',
+        actorServiceAccountId: request.apiToken.serviceAccount.id,
+        ip: request.ip,
+        details: {
+          tokenId: request.apiToken.id,
+          publicId: request.apiToken.publicId,
+          method: request.method,
+          route: request.routeOptions.url,
+        },
+      });
+      return;
+    }
     if (isCrossOrigin(request)) {
       return send(
         reply,
@@ -290,27 +304,6 @@ export async function registerAuth(app: FastifyInstance, deps: AuthDeps): Promis
           'Your session token did not match. Reload the page and try again.',
         );
       }
-    }
-  });
-
-  app.addHook('onResponse', async (request, reply) => {
-    const token = request.apiToken;
-    if (!token || SAFE_METHODS.has(request.method)) return;
-    try {
-      await audit(db, {
-        action: 'token.request',
-        actorServiceAccountId: token.serviceAccount.id,
-        ip: request.ip,
-        details: {
-          tokenId: token.id,
-          publicId: token.publicId,
-          method: request.method,
-          route: request.routeOptions.url,
-          status: reply.statusCode,
-        },
-      });
-    } catch (err) {
-      request.log.error({ err }, 'could not write the audit record for a token request');
     }
   });
 }

@@ -151,7 +151,8 @@ Dockerfile        multi-stage; runtime runs as `node`, files root-owned
   `/var/lib/postgresql/data`.
 - **Queue health** is `pg-boss isInstalled()`, which needs a database round trip; database and
   queue checks time out after 2 s each.
-- **`trustProxy: true`** because the app is only reachable through Caddy on the compose network.
+- **`trustProxy: true`** because the app is only reachable through Caddy on the compose network;
+  Caddy overwrites `X-Forwarded-For` with the connected client's IP so callers cannot spoof it.
 - **Image name** `ghcr.io/salmonllama/open-itsm`, tag from `OPEN_ITSM_VERSION` in `.env`. The
   release workflow that publishes multi-arch images is M11; CI builds but does not push.
 - **Docker production deps** come from `pnpm install --prod --filter "@open-itsm/server..."`
@@ -228,8 +229,9 @@ Dockerfile        multi-stage; runtime runs as `node`, files root-owned
   a token in the query or body is refused (400) and audited. Cookie plus token is refused (400).
   Token requests skip CSRF. Limits (in memory): 300 requests per token per minute; 10 invalid
   tokens per IP per 15 minutes, after which the IP gets 429 and attempts are no longer audited
-  (so a flood cannot fill the log). Every state-changing token request is audited
-  (`token.request`, written in onResponse). `last_used_at` is touched at most once a minute.
+  (so a flood cannot fill the log). Every authorized state-changing token request is audited
+  (`token.request`) before its handler runs; if the audit write fails, the change is refused.
+  `last_used_at` is touched at most once a minute.
 - **Service accounts** can be deleted only while nothing references them (409 `has_history`);
   otherwise disable them.
 - **Who manages asset types (M2, user's choice):** administrators and technicians.

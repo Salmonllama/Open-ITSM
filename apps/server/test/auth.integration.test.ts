@@ -73,6 +73,10 @@ describe.skipIf(!testDatabaseUrl)('sign-in security', () => {
     expect(res.statusCode).toBe(403);
     const same = await login('origin@example.com', PASSWORD, { origin: 'http://localhost:80' });
     expect(same.statusCode).toBe(200);
+    const differentScheme = await login('origin@example.com', PASSWORD, {
+      origin: 'https://localhost',
+    });
+    expect(differentScheme.statusCode).toBe(403);
   });
 
   it('requires the CSRF token on authenticated writes', async () => {

@@ -16,7 +16,7 @@ import { fieldKey } from '../assets/fields.js';
 import { audit } from '../audit.js';
 import { actorOf } from '../auth/http.js';
 import type { Db } from '../db/client.js';
-import { assets, assetTypeFields, assetTypes } from '../db/schema.js';
+import { assetEvents, assets, assetTypeFields, assetTypes } from '../db/schema.js';
 import { ASSETS_READ, ASSETS_WRITE, isUniqueViolation, type RouteDeps } from './deps.js';
 
 const idParams = z.object({ id: z.uuid() });
@@ -412,15 +412,50 @@ export function registerAssetTypeRoutes(app: FastifyInstance, { db }: RouteDeps)
     async (request, reply) => {
       const { id, fieldId } = request.params;
       const deleted = await db.transaction(async (tx) => {
+        const typeAssets = await tx
+          .select({ id: assets.id, fields: assets.fields })
+          .from(assets)
+          .where(eq(assets.assetTypeId, id))
+          .for('update');
         const [field] = await tx
           .delete(assetTypeFields)
           .where(and(eq(assetTypeFields.id, fieldId), eq(assetTypeFields.assetTypeId, id)))
-          .returning({ key: assetTypeFields.key });
+          .returning({ key: assetTypeFields.key, label: assetTypeFields.label });
         if (!field) return false;
-        await tx
-          .update(assets)
-          .set({ fields: sql`${assets.fields} - ${field.key}` })
-          .where(eq(assets.assetTypeId, id));
+        const affectedAssets = typeAssets.filter((asset) => Object.hasOwn(asset.fields, field.key));
+        if (affectedAssets.length > 0) {
+          const { actorUserId, actorServiceAccountId } = actorOf(request);
+          await tx
+            .update(assets)
+            .set({
+              fields: sql`${assets.fields} - ${field.key}`,
+              updatedAt: new Date(),
+              updatedByUserId: actorUserId,
+              updatedByServiceAccountId: actorServiceAccountId,
+            })
+            .where(and(eq(assets.assetTypeId, id), sql`${assets.fields} ? ${field.key}`));
+          await tx.insert(assetEvents).values(
+            affectedAssets.map((asset) => ({
+              assetId: asset.id,
+              kind: 'edited' as const,
+              subject: field.label,
+              actorUserId,
+              actorServiceAccountId,
+            })),
+          );
+        }
+        await audit(tx, {
+          action: 'asset_type_field.deleted',
+          ...actorOf(request),
+          ip: request.ip,
+          details: {
+            assetTypeId: id,
+            fieldId,
+            fieldKey: field.key,
+            label: field.label,
+            affectedAssetCount: affectedAssets.length,
+          },
+        });
         return true;
       });
       if (!deleted) return reply.code(404).send(FIELD_NOT_FOUND);

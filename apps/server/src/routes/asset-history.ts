@@ -359,16 +359,18 @@ export function registerAssetHistoryRoutes(app: FastifyInstance, deps: RouteDeps
     },
     async (request, reply) => {
       const { id } = request.params;
-      const { status: next } = request.body;
+      const { status: next, notes } = request.body;
       return change(request, reply, id, async (tx, status) => {
         if (status === 'in_repair') return IN_REPAIR;
         const ended = await endOpenAssignment(tx, request, id);
         if (!ended) {
           return refuse('not_assigned', 'This asset is not assigned to anyone. Reload the page.');
         }
+        const assignment = describeAssignment(ended.assignee, ended.location);
+        const subject = notes ? `${assignment}; notes: ${notes}` : assignment;
         await recordAssetChange(tx, request, id, {
           kind: 'returned',
-          subject: describeAssignment(ended.assignee, ended.location),
+          subject,
           fromStatus: status,
           toStatus: next,
         });

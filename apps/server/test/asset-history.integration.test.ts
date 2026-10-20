@@ -135,6 +135,18 @@ describe.skipIf(!testDatabaseUrl)('statuses, assignment history and repairs', ()
         ['assigned', 'deployed', 'Daniel Ortiz, Remote'],
       ]);
     });
+
+    it('keeps notes entered when returning an asset in its activity history', async () => {
+      const asset = await newAsset();
+      await post(tech, `/api/assets/${asset.id}/assign`, { assignee: 'Priya Nair' });
+      const returned = await post(tech, `/api/assets/${asset.id}/return`, {
+        notes: 'Returned with a damaged charger',
+      });
+      expect(returned.statusCode).toBe(200);
+      expect((await history(asset.id)).activity[0]?.subject).toBe(
+        'Priya Nair; notes: Returned with a damaged charger',
+      );
+    });
   });
 
   describe('status rules', () => {
