@@ -1,4 +1,4 @@
-import { ASSET_STATUSES, FIELD_KINDS, TOKEN_SCOPES } from '@open-itsm/shared';
+import { ASSET_EVENT_KINDS, ASSET_STATUSES, FIELD_KINDS, TOKEN_SCOPES } from '@open-itsm/shared';
 import { sql } from 'drizzle-orm';
 import {
   bigserial,
@@ -18,6 +18,7 @@ import {
 export const userRole = pgEnum('user_role', ['admin', 'technician', 'end_user']);
 export const assetStatus = pgEnum('asset_status', ASSET_STATUSES);
 export const fieldKind = pgEnum('field_kind', FIELD_KINDS);
+export const assetEventKind = pgEnum('asset_event_kind', ASSET_EVENT_KINDS);
 
 export const users = pgTable(
   'users',
@@ -196,6 +197,115 @@ export const assets = pgTable(
     check('assets_number_not_blank', sql`btrim(${t.number}) <> ''`),
     check('assets_fields_object', sql`jsonb_typeof(${t.fields}) = 'object'`),
     oneActor('assets_one_updater', t.updatedByUserId, t.updatedByServiceAccountId),
+  ],
+);
+
+/**
+ * Who had an asset or where it was. Append only (a trigger allows only ending an open row), and
+ * at most one open assignment per asset.
+ */
+export const assetAssignments = pgTable(
+  'asset_assignments',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    assetId: uuid('asset_id')
+      .notNull()
+      .references(() => assets.id),
+    assignee: text('assignee').notNull().default(''),
+    location: text('location').notNull().default(''),
+    notes: text('notes').notNull().default(''),
+    startedAt: timestamp('started_at', { withTimezone: true }).notNull().defaultNow(),
+    startedByUserId: uuid('started_by_user_id').references(() => users.id),
+    startedByServiceAccountId: uuid('started_by_service_account_id').references(
+      () => serviceAccounts.id,
+    ),
+    endedAt: timestamp('ended_at', { withTimezone: true }),
+    endedByUserId: uuid('ended_by_user_id').references(() => users.id),
+    endedByServiceAccountId: uuid('ended_by_service_account_id').references(
+      () => serviceAccounts.id,
+    ),
+  },
+  (t) => [
+    index('asset_assignments_asset_id_idx').on(t.assetId, t.startedAt),
+    uniqueIndex('asset_assignments_one_open')
+      .on(t.assetId)
+      .where(sql`${t.endedAt} is null`),
+    check(
+      'asset_assignments_who_or_where',
+      sql`btrim(${t.assignee}) <> '' or btrim(${t.location}) <> ''`,
+    ),
+    check(
+      'asset_assignments_ends_after_start',
+      sql`${t.endedAt} is null or ${t.endedAt} >= ${t.startedAt}`,
+    ),
+    oneActor('asset_assignments_one_starter', t.startedByUserId, t.startedByServiceAccountId),
+    oneActor('asset_assignments_one_ender', t.endedByUserId, t.endedByServiceAccountId),
+  ],
+);
+
+/**
+ * Repairs logged against an asset. Inserting one sets the asset to in repair (trigger);
+ * `previousStatus` is what closing it restores. At most one open repair per asset.
+ */
+export const repairs = pgTable(
+  'repairs',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    assetId: uuid('asset_id')
+      .notNull()
+      .references(() => assets.id),
+    summary: text('summary').notNull(),
+    notes: text('notes').notNull().default(''),
+    previousStatus: assetStatus('previous_status').notNull(),
+    openedAt: timestamp('opened_at', { withTimezone: true }).notNull().defaultNow(),
+    openedByUserId: uuid('opened_by_user_id').references(() => users.id),
+    openedByServiceAccountId: uuid('opened_by_service_account_id').references(
+      () => serviceAccounts.id,
+    ),
+    closedAt: timestamp('closed_at', { withTimezone: true }),
+    closedByUserId: uuid('closed_by_user_id').references(() => users.id),
+    closedByServiceAccountId: uuid('closed_by_service_account_id').references(
+      () => serviceAccounts.id,
+    ),
+  },
+  (t) => [
+    index('repairs_asset_id_idx').on(t.assetId, t.openedAt),
+    uniqueIndex('repairs_one_open')
+      .on(t.assetId)
+      .where(sql`${t.closedAt} is null`),
+    check('repairs_summary_not_blank', sql`btrim(${t.summary}) <> ''`),
+    check(
+      'repairs_closes_after_open',
+      sql`${t.closedAt} is null or ${t.closedAt} >= ${t.openedAt}`,
+    ),
+    check('repairs_previous_status', sql`${t.previousStatus} not in ('in_repair', 'retired')`),
+    oneActor('repairs_one_opener', t.openedByUserId, t.openedByServiceAccountId),
+    oneActor('repairs_one_closer', t.closedByUserId, t.closedByServiceAccountId),
+  ],
+);
+
+/**
+ * The asset page's activity feed. Append only, except that deleting an asset (allowed only while
+ * it has nothing but edits) removes its rows.
+ */
+export const assetEvents = pgTable(
+  'asset_events',
+  {
+    id: bigserial('id', { mode: 'number' }).primaryKey(),
+    assetId: uuid('asset_id')
+      .notNull()
+      .references(() => assets.id, { onDelete: 'cascade' }),
+    kind: assetEventKind('kind').notNull(),
+    at: timestamp('at', { withTimezone: true }).notNull().defaultNow(),
+    actorUserId: uuid('actor_user_id').references(() => users.id),
+    actorServiceAccountId: uuid('actor_service_account_id').references(() => serviceAccounts.id),
+    fromStatus: assetStatus('from_status'),
+    toStatus: assetStatus('to_status'),
+    subject: text('subject').notNull().default(''),
+  },
+  (t) => [
+    index('asset_events_asset_id_idx').on(t.assetId, t.at),
+    oneActor('asset_events_one_actor', t.actorUserId, t.actorServiceAccountId),
   ],
 );
 

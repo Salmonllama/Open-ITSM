@@ -11,7 +11,7 @@ import {
   type AssetListResponse,
   type AssetStatus,
 } from '@open-itsm/shared';
-import { and, asc, count, eq, ilike, or, sql, type SQL } from 'drizzle-orm';
+import { and, asc, count, eq, ilike, ne, or, sql, type SQL } from 'drizzle-orm';
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import type { ZodTypeProvider } from 'fastify-type-provider-zod';
 import { z } from 'zod';
@@ -20,10 +20,15 @@ import { takeAssetNumbers } from '../assets/numbers.js';
 import { audit } from '../audit.js';
 import { actorOf } from '../auth/http.js';
 import type { Db } from '../db/client.js';
-import { assets, assetTypes, serviceAccounts, users } from '../db/schema.js';
+import { assetEvents, assets, assetTypes, serviceAccounts, users } from '../db/schema.js';
 import { loadFields } from './asset-types.js';
 import { ASSETS_READ, ASSETS_WRITE, isUniqueViolation, type RouteDeps } from './deps.js';
 import { registerAssetImportRoute } from './asset-import.js';
+import {
+  lockedStatusRefusal,
+  recordAssetChange,
+  registerAssetHistoryRoutes,
+} from './asset-history.js';
 
 const idParams = z.object({ id: z.uuid() });
 
@@ -65,7 +70,7 @@ function updaterOf(request: FastifyRequest) {
 }
 
 /** For an asset just written in this request, which must exist. */
-async function loadWrittenAsset(db: Pick<Db, 'select'>, id: string): Promise<Asset> {
+export async function loadWrittenAsset(db: Pick<Db, 'select'>, id: string): Promise<Asset> {
   const asset = await loadAsset(db, eq(assets.id, id));
   if (!asset) throw new Error(`asset ${id} not found after write`);
   return asset;
@@ -293,7 +298,8 @@ export function registerAssetRoutes(app: FastifyInstance, deps: RouteDeps) {
       config: { access: ASSETS_WRITE },
       schema: {
         summary: 'Change an asset’s number, name, status or custom field values',
-        description: '`fields` replaces every custom field value; leave a key out to clear it.',
+        description:
+          '`fields` replaces every custom field value; leave a key out to clear it. `status` can be Preparing, In stock or Retired, and only while the asset is not deployed or in repair: assign, return and repair it to change those.',
         tags: ['assets'],
         params: idParams,
         body: updateAssetRequestSchema,
@@ -311,29 +317,65 @@ export function registerAssetRoutes(app: FastifyInstance, deps: RouteDeps) {
       try {
         const outcome = await db.transaction(async (tx) => {
           const [current] = await tx
-            .select({ typeId: assets.assetTypeId })
+            .select({
+              typeId: assets.assetTypeId,
+              status: assets.status,
+              number: assets.number,
+              name: assets.name,
+              fields: assets.fields,
+            })
             .from(assets)
             .where(eq(assets.id, id))
             .for('update');
           if (!current) return { kind: 'not_found' } as const;
+          const statusChanges = status !== undefined && status !== current.status;
+          if (statusChanges) {
+            const refusal = lockedStatusRefusal(current.status);
+            if (refusal) return { kind: 'refused', refusal } as const;
+          }
           const changes: Partial<typeof assets.$inferInsert> = {
             updatedAt: new Date(),
             ...updaterOf(request),
           };
-          if (number !== undefined) changes.number = number;
-          if (name !== undefined) changes.name = name;
-          if (status !== undefined) changes.status = status;
+          // Labels of what changed, for the activity feed.
+          const edited: string[] = [];
+          if (number !== undefined && number !== current.number) {
+            changes.number = number;
+            edited.push('Asset number');
+          }
+          if (name !== undefined && name !== current.name) {
+            changes.name = name;
+            edited.push('Name');
+          }
           if (fields !== undefined) {
-            const checked = validateFieldValues(await loadFields(tx, current.typeId), fields);
+            const definitions = await loadFields(tx, current.typeId);
+            const checked = validateFieldValues(definitions, fields);
             if (checked.problems.length > 0) {
               return { kind: 'problems', problems: checked.problems } as const;
             }
             changes.fields = checked.values;
+            for (const field of definitions) {
+              if (current.fields[field.key] !== checked.values[field.key]) edited.push(field.label);
+            }
           }
           await tx.update(assets).set(changes).where(eq(assets.id, id));
+          if (edited.length > 0) {
+            await recordAssetChange(tx, request, id, {
+              kind: 'edited',
+              subject: edited.join(', '),
+            });
+          }
+          if (statusChanges) {
+            await recordAssetChange(tx, request, id, {
+              kind: 'status_changed',
+              fromStatus: current.status,
+              toStatus: status,
+            });
+          }
           return { kind: 'ok' } as const;
         });
         if (outcome.kind === 'not_found') return reply.code(404).send(NOT_FOUND);
+        if (outcome.kind === 'refused') return reply.code(409).send(outcome.refusal);
         if (outcome.kind === 'problems') {
           return reply.code(400).send(fieldProblemsResponse(outcome.problems));
         }
@@ -354,15 +396,22 @@ export function registerAssetRoutes(app: FastifyInstance, deps: RouteDeps) {
       schema: {
         summary: 'Delete an asset entered by mistake',
         description:
-          'Allowed only while the asset has no history; once it has been assigned or repaired, retire it instead.',
+          'Allowed only while the asset has no history beyond edits (no status changes, assignments or repairs); otherwise retire it instead.',
         tags: ['assets'],
         params: idParams,
-        response: { 204: z.null(), 404: errorResponseSchema },
+        response: { 204: z.null(), 404: errorResponseSchema, 409: errorResponseSchema },
       },
     },
     async (request, reply) => {
       const { id } = request.params;
       const deleted = await db.transaction(async (tx) => {
+        // Lock first, so no assignment or repair can be added between the check and the delete.
+        await tx.select({ id: assets.id }).from(assets).where(eq(assets.id, id)).for('update');
+        const [history] = await tx
+          .select({ n: count() })
+          .from(assetEvents)
+          .where(and(eq(assetEvents.assetId, id), ne(assetEvents.kind, 'edited')));
+        if (history && history.n > 0) return 'has_history' as const;
         const [row] = await tx
           .delete(assets)
           .where(eq(assets.id, id))
@@ -376,10 +425,18 @@ export function registerAssetRoutes(app: FastifyInstance, deps: RouteDeps) {
         });
         return true;
       });
+      if (deleted === 'has_history') {
+        return reply.code(409).send({
+          error: 'has_history',
+          message:
+            'This asset has history, so it cannot be deleted. Change its status to Retired instead.',
+        });
+      }
       if (!deleted) return reply.code(404).send(NOT_FOUND);
       return reply.code(204).send(null);
     },
   );
 
   registerAssetImportRoute(app, deps);
+  registerAssetHistoryRoutes(app, deps);
 }

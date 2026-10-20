@@ -1,11 +1,12 @@
 import {
-  ASSET_STATUSES,
+  SETTABLE_ASSET_STATUSES,
   formatAssetNumber,
+  isSettableStatus,
   type Asset,
   type AssetField,
-  type AssetStatus,
   type AssetType,
   type FieldValues,
+  type SettableAssetStatus,
 } from '@open-itsm/shared';
 import { useId, useState, type FormEvent, type ReactNode } from 'react';
 import { assetStatusLabels } from '@/lib/assets';
@@ -17,7 +18,8 @@ import { Input, Label, Select } from './ui/input';
 export type AssetFormValues = {
   number: string | undefined;
   name: string;
-  status: AssetStatus;
+  /** Left out while the asset is deployed or in repair; those come from its history. */
+  status?: SettableAssetStatus;
   fields: FieldValues;
 };
 
@@ -73,6 +75,7 @@ export function AssetForm({
   onCancel: () => void;
 }) {
   const statusId = useId();
+  const statusEditable = asset === undefined || isSettableStatus(asset.status);
   const [fieldText, setFieldText] = useState(() => toText(type.fields, asset?.fields ?? {}));
 
   function submit(event: FormEvent<HTMLFormElement>) {
@@ -82,7 +85,7 @@ export function AssetForm({
     onSubmit({
       number: number === '' ? undefined : number,
       name: String(form.get('name')),
-      status: String(form.get('status')) as AssetStatus,
+      ...(statusEditable ? { status: String(form.get('status')) as SettableAssetStatus } : {}),
       fields: fromText(type.fields, fieldText),
     });
   }
@@ -115,16 +118,30 @@ export function AssetForm({
             defaultValue={asset?.name}
             hint="What people call it, like Dell Latitude 5440."
           />
-          <div className="flex flex-col gap-2">
-            <Label htmlFor={statusId}>Status</Label>
-            <Select id={statusId} name="status" defaultValue={asset?.status ?? 'in_stock'}>
-              {ASSET_STATUSES.map((s) => (
-                <option key={s} value={s}>
-                  {assetStatusLabels[s]}
-                </option>
-              ))}
-            </Select>
-          </div>
+          {statusEditable ? (
+            <div className="flex flex-col gap-2">
+              <Label htmlFor={statusId}>Status</Label>
+              <Select id={statusId} name="status" defaultValue={asset?.status ?? 'in_stock'}>
+                {SETTABLE_ASSET_STATUSES.map((s) => (
+                  <option key={s} value={s}>
+                    {assetStatusLabels[s]}
+                  </option>
+                ))}
+              </Select>
+              <p className="m-0 type-caption text-ink-muted">
+                Assigning an asset sets it to Deployed; logging a repair sets it to In repair.
+              </p>
+            </div>
+          ) : (
+            <div className="flex flex-col gap-2">
+              <span className="type-label">Status</span>
+              <p className="m-0 type-caption text-ink-muted">
+                {asset.status === 'deployed'
+                  ? 'Deployed while it is assigned. Return it from the asset page to change the status.'
+                  : 'In repair until the repair is closed from the asset page.'}
+              </p>
+            </div>
+          )}
         </div>
         {type.fields.length > 0 && (
           <fieldset className="m-0 flex flex-col gap-4 border-0 p-0">

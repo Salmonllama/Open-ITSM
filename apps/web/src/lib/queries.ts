@@ -1,7 +1,9 @@
 import {
   adminUserSchema,
+  assetHistorySchema,
   assetListResponseSchema,
   assetSchema,
+  assignmentSuggestionsSchema,
   assetTypeSchema,
   serviceAccountSchema,
   type AssetListQuery,
@@ -58,6 +60,22 @@ export function assetQuery(id: string) {
     queryFn: () => apiRequest('GET', `/api/assets/${id}`, { schema: assetSchema }),
   });
 }
+
+export function assetHistoryQuery(id: string) {
+  return queryOptions({
+    queryKey: ['assets', id, 'history'],
+    queryFn: () => apiRequest('GET', `/api/assets/${id}/history`, { schema: assetHistorySchema }),
+  });
+}
+
+export const assignmentSuggestionsQuery = queryOptions({
+  queryKey: ['assignment-suggestions'],
+  queryFn: () =>
+    apiRequest('GET', '/api/assets/assignment-suggestions', {
+      schema: assignmentSuggestionsSchema,
+    }),
+  staleTime: 60_000,
+});
 
 export const serviceAccountsQuery = queryOptions({
   queryKey: ['service-accounts'],

@@ -18,6 +18,18 @@ export const assetStatusLabels: Record<AssetStatus, string> = {
   retired: 'Retired',
 };
 
+/**
+ * Statuses a person may set directly (on create, edit or import). Deployed comes from assigning
+ * an asset and In repair from opening a repair, so those two always match the history.
+ */
+export const SETTABLE_ASSET_STATUSES = ['preparing', 'in_stock', 'retired'] as const;
+export const settableAssetStatusSchema = z.enum(SETTABLE_ASSET_STATUSES);
+export type SettableAssetStatus = z.infer<typeof settableAssetStatusSchema>;
+
+export function isSettableStatus(status: AssetStatus): status is SettableAssetStatus {
+  return (SETTABLE_ASSET_STATUSES as readonly string[]).includes(status);
+}
+
 export const FIELD_KINDS = ['text', 'number', 'date', 'select', 'boolean'] as const;
 export const fieldKindSchema = z.enum(FIELD_KINDS);
 export type FieldKind = z.infer<typeof fieldKindSchema>;
@@ -180,7 +192,7 @@ export const createAssetRequestSchema = z.object({
   /** Leave out to take the next number from the type's sequence. */
   number: assetNumberSchema.optional(),
   name: assetNameSchema,
-  status: assetStatusSchema.default('in_stock'),
+  status: settableAssetStatusSchema.default('in_stock'),
   fields: fieldValuesSchema.default({}),
 });
 export type CreateAssetRequest = z.input<typeof createAssetRequestSchema>;
@@ -189,7 +201,7 @@ export const updateAssetRequestSchema = z
   .object({
     number: assetNumberSchema.optional(),
     name: assetNameSchema.optional(),
-    status: assetStatusSchema.optional(),
+    status: settableAssetStatusSchema.optional(),
     /** Replaces every custom field value; leave a key out to clear it. */
     fields: fieldValuesSchema.optional(),
   })
