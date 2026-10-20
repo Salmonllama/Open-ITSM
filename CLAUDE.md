@@ -212,6 +212,10 @@ Dockerfile        multi-stage; runtime runs as `node`, files root-owned
 - **Shell:** sidebar nav from the mockups (lockup at 28px, Lucide icons at 20px, selected item
   pine-soft with `aria-current="page"`, user name, role and Sign out in the footer); main area
   with 32px padding. Only pages that exist get nav items (Status, and Users for admins).
+  Below 768px (Tailwind `md`) the sidebar is replaced by a top bar with a menu button that opens
+  the same nav in a drawer from the left (native modal `<dialog>`: Escape, tapping outside or
+  choosing a link closes it; the slide is off under `prefers-reduced-motion`), and the main area
+  pads 16px.
 - **Theme:** follows the OS by default; the sidebar's Theme select overrides it per browser
   (`localStorage` key `open-itsm-theme`, applied in `main.tsx` before render). Storing it per user
   is in `docs/IDEAS.md`.
