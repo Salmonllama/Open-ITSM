@@ -1,6 +1,15 @@
 import { useMutation, useQueryClient, useSuspenseQuery } from '@tanstack/react-query';
 import { Link, Outlet, createRoute, redirect, useNavigate } from '@tanstack/react-router';
-import { Activity, BookOpen, KeyRound, Laptop, LogOut, Shapes, Users } from 'lucide-react';
+import {
+  Activity,
+  BookOpen,
+  KeyRound,
+  Laptop,
+  LogOut,
+  ScanLine,
+  Shapes,
+  Users,
+} from 'lucide-react';
 import type { ReactNode } from 'react';
 import { Logo } from '@/components/logo';
 import { ThemeSelect } from '@/components/theme-select';
@@ -44,7 +53,7 @@ function AuthedLayout() {
     <div className="flex min-h-screen flex-wrap">
       <nav
         aria-label="Main"
-        className="flex flex-[1_1_232px] flex-col gap-1 border-r border-line bg-surface-sunken px-3 py-4"
+        className="flex flex-[1_1_232px] flex-col gap-1 border-r border-line bg-surface-sunken px-3 py-4 print:hidden"
       >
         <div className="px-2 pt-2 pb-6">
           <Logo />
@@ -54,6 +63,9 @@ function AuthedLayout() {
         </NavLink>
         <NavLink to="/assets" exact={false} icon={<Laptop strokeWidth={1.75} />}>
           Assets
+        </NavLink>
+        <NavLink to="/scan" icon={<ScanLine strokeWidth={1.75} />}>
+          Scan
         </NavLink>
         <NavLink to="/asset-types" exact={false} icon={<Shapes strokeWidth={1.75} />}>
           Asset types
@@ -92,7 +104,7 @@ function AuthedLayout() {
           </Button>
         </div>
       </nav>
-      <main className="flex min-w-0 flex-[999_1_640px] flex-col gap-6 p-8">
+      <main className="flex min-w-0 flex-[999_1_640px] flex-col gap-6 p-8 print:block print:p-0">
         <Outlet />
       </main>
     </div>
@@ -112,7 +124,7 @@ function NavLink({
   icon,
   children,
 }: {
-  to: '/' | '/assets' | '/asset-types' | '/admin/users' | '/admin/service-accounts';
+  to: '/' | '/assets' | '/scan' | '/asset-types' | '/admin/users' | '/admin/service-accounts';
   exact?: boolean;
   icon: ReactNode;
   children: ReactNode;
