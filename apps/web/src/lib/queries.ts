@@ -9,10 +9,15 @@ import {
   consumableListResponseSchema,
   lowStockSummarySchema,
   openRepairListSchema,
+  requesterListSchema,
   serviceAccountSchema,
+  ticketAssigneeListSchema,
+  ticketDetailSchema,
+  ticketListResponseSchema,
   type AssetListQuery,
   type ConsumableListQuery,
   type SessionResponse,
+  type TicketListQuery,
 } from '@open-itsm/shared';
 import { queryOptions, type QueryClient } from '@tanstack/react-query';
 import { z } from 'zod';
@@ -116,6 +121,48 @@ export const openRepairsQuery = queryOptions({
   queryKey: ['repairs', 'open'],
   queryFn: () => apiRequest('GET', '/api/repairs/open', { schema: openRepairListSchema }),
 });
+
+export function ticketsQuery(query: TicketListQuery) {
+  return queryOptions({
+    queryKey: ['tickets', 'list', query],
+    queryFn: () =>
+      apiRequest('GET', `/api/tickets?${searchParams(query)}`, {
+        schema: ticketListResponseSchema,
+      }),
+    placeholderData: (previous) => previous,
+  });
+}
+
+/** Feeds the sidebar's open count: the queue counts of an empty search. */
+export const ticketCountsQuery = queryOptions({
+  queryKey: ['tickets', 'list', 'counts'],
+  queryFn: () => apiRequest('GET', '/api/tickets?pageSize=1', { schema: ticketListResponseSchema }),
+  select: (data) => data.counts,
+  staleTime: 60_000,
+});
+
+export function ticketQuery(id: string) {
+  return queryOptions({
+    queryKey: ['tickets', id],
+    queryFn: () => apiRequest('GET', `/api/tickets/${id}`, { schema: ticketDetailSchema }),
+  });
+}
+
+export const ticketAssigneesQuery = queryOptions({
+  queryKey: ['tickets', 'assignees'],
+  queryFn: () => apiRequest('GET', '/api/tickets/assignees', { schema: ticketAssigneeListSchema }),
+  staleTime: 60_000,
+});
+
+export function requestersQuery(q: string) {
+  return queryOptions({
+    queryKey: ['requesters', q],
+    queryFn: () =>
+      apiRequest('GET', `/api/requesters?${searchParams({ q })}`, { schema: requesterListSchema }),
+    placeholderData: (previous) => previous,
+    staleTime: 30_000,
+  });
+}
 
 export const serviceAccountsQuery = queryOptions({
   queryKey: ['service-accounts'],

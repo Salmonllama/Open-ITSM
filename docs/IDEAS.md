@@ -48,3 +48,8 @@ says so.
   locations once and pick them from a list on both assets and end users, which would make
   locations consistent and allow filtering assets and people by site. Existing free-text
   values would need a one-time mapping to the new records.
+
+## Tickets
+
+- **Tickets on the asset page.** Tickets can link assets (M6), but the asset page does not list
+  the tickets that name it. A Tickets card there would show an asset's support history.

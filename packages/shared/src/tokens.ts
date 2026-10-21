@@ -9,8 +9,8 @@ export const TOKEN_SCOPES = [
 export const tokenScopeSchema = z.enum(TOKEN_SCOPES);
 export type TokenScope = z.infer<typeof tokenScopeSchema>;
 
-/** Scopes that can be issued today; the ticket scopes arrive with tickets (M6). */
-export const ISSUABLE_SCOPES = ['assets:read', 'assets:write'] as const satisfies TokenScope[];
+/** Every scope can be issued; kept separate so a future scope can ship before it is issuable. */
+export const ISSUABLE_SCOPES = TOKEN_SCOPES;
 
 export const TOKEN_DEFAULT_DAYS = 90;
 export const TOKEN_MAX_DAYS = 365;

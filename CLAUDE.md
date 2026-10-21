@@ -15,7 +15,8 @@ voice, logo) and the page mockups that every screen must follow.
 | M2 Asset types, fields, assets, CSV import, service accounts, tokens    | Done (CI green on PR #3)                                |
 | M3 Status rules, assignment history, repairs, asset activity            | Done (CI green on PR #5)                                |
 | M4 QR tags, label printing, scan page with check in and out             | Done (CI green on PR #8)                                |
-| M5 Consumables, stock adjustments, repair link, low-stock notice        | Built; PR open, waiting on CI and review                |
+| M5 Consumables, stock adjustments, repair link, low-stock notice        | Done (CI green on PR #11)                               |
+| M6 Tickets, requesters, queues, ticket page, linked assets, scopes      | Built; PR open, waiting on CI and review                |
 
 Update this table when a milestone is committed.
 
@@ -90,35 +91,41 @@ apps/server       Fastify API; also serves the built web UI from WEB_ROOT
   src/assets/     fields.ts (field keys, value validation, CSV cells), numbers.ts (next numbers)
   src/routes/     setup, auth, users and service-accounts (admin only), asset-types, assets,
                   asset-import, asset-history (assign, return, repairs, history, suggestions),
-                  consumables (stock, adjustments, low stock, open repairs);
+                  consumables (stock, adjustments, low stock, open repairs), tickets (list,
+                  requesters, assignees, messages, status/assignee, linked assets, read marks);
                   deps.ts holds RouteDeps and the ADMIN_ONLY/ASSETS_* access presets
   src/audit.ts    append-only audit log writer (actor is a user or a service account)
   src/recovery.ts recovery commands; src/cli.ts is the `itsm` entrypoint in the image
   drizzle/        generated SQL migrations, applied at startup in one transaction
-  test/           vitest; *.integration.test.ts need TEST_DATABASE_URL (each file gets its own DB)
+  test/           vitest; *.integration.test.ts need TEST_DATABASE_URL (each file gets its own DB);
+                  fixtures/tickets.ts holds requester tickets until email intake (M7)
 apps/web          React + Vite + TanStack Router/Query + Tailwind v4
   src/index.css   design-system tokens (light, dark, OS-dark), Tailwind colour mappings, type-* styles
   src/components/ ui/ (Button, Input/Select/Label, Card/ErrorMessage, StatusBadge, Table), FormField,
                   PageHeader, ConfirmDialog, FormDialog, Logo, AuthLayout, ThemeSelect
   src/routes/     setup, login, authed layout (sidebar shell; redirects to setup/login), index,
                   assets (list), asset-new, asset-view (view + edit), asset-import, asset-types
-                  (list + one type), consumables (list + one item), admin-users,
+                  (list + one type), consumables (list + one item), tickets (list),
+                  ticket-view (conversation, composer, side cards), admin-users,
                   admin-service-accounts
   src/components/asset-form.tsx  number, name, status and the type's custom fields
   src/components/asset-history.tsx  asset page cards (assigned to, assignment history, repairs,
                   activity) and the assign/return/repair/status dialogs
   src/components/consumable-dialogs.tsx  new/edit consumable and the add/use/count dialog
   src/components/low-stock.tsx  Low stock badge and the notice above the asset list
+  src/components/ticket-dialogs.tsx  New ticket and Link asset dialogs
+  src/components/search-field.tsx, filter-tabs.tsx  list search box and queue/status tabs
   src/components/asset-tag.tsx  the printed tag (QR code drawn as an SVG path)
   src/components/qr-camera.tsx  camera preview that reads QR codes
   src/routes/asset-labels.tsx  print page (/assets/labels); scan.tsx is /scan and the tag
                   route /a/<number>
   src/lib/        api.ts (fetch wrapper, CSRF header, CSV import), queries.ts, assets.ts (status
                   tones, date and field formatting), theme.ts, roles.ts, scan.ts (tag URLs, reading
-                  scans), labels.ts (print layouts), consumables.ts (change labels, notice text)
+                  scans), labels.ts (print layouts), consumables.ts (change labels, notice text),
+                  tickets.ts (status tones, source labels, times, history lines)
   public/brand/   logo SVGs from the design system (lockup, reversed, mark, favicon, app icon)
 packages/shared   zod schemas and types shared by server and web (auth, assets, tokens,
-                  consumables)
+                  consumables, tickets)
 docs/api.md       operator notes for scripts: tokens, PowerShell and curl examples
 compose.yml       app + db + caddy; the file operators download (Caddyfile is inline)
 compose.build.yml override that builds the app image from the checkout
@@ -315,6 +322,37 @@ Dockerfile        multi-stage; runtime runs as `node`, files root-owned
   never flags it. Low items show a Low stock badge (warning tone), a notice above the asset list
   naming up to three (`GET /api/consumables/low-stock`), and a count beside Consumables in the
   sidebar. Consumables are under the asset scopes, as `docs/IMPLEMENTATION.md` says.
+- **Tickets (M6, user's choice):** numbered from #1 (one identity sequence; shown as `#12`).
+  Statuses New, In progress, Waiting on user, Resolved, Closed; open means the first three.
+  Assigning or replying to a New ticket moves it to In progress; "Send and set Waiting on user"
+  replies and sets that status; Resolved and Closed are set by hand, and any status but New can
+  be set, so a closed ticket reopens by setting In progress. Only active admins and technicians
+  can be assignees (409 otherwise). Sources: `email` (M7), `dashboard` (New ticket) and `api`
+  (token). Until M7 the first message is the requester's words entered by a technician or
+  script, attributed to them.
+- **Requesters (M6, user's choice):** a separate `requesters` table (name, email unique and
+  stored lowercase) that tickets point to; a new ticket finds the requester by email or adds
+  one, and fills a blank name but never overwrites one. `GET /api/requesters` feeds the New
+  ticket suggestions. End-user accounts in M10 will link to these.
+- **Replies before M7 (user's choice):** replies are saved with `emailed_at` null and shown as
+  "not emailed: no mailbox connected". M7 sends only replies made after the mailbox is set up.
+  Internal notes are staff only and never emailed. Attachments arrive with email in M7.
+- **Ticket history:** `ticket_messages` and `ticket_events` are append only by trigger (the one
+  allowed update is setting a reply's `emailed_at` once); events record creation, status,
+  assignee and linked-asset changes with the actor. Tickets are never deleted.
+- **Linked assets (M6, user's choice):** `ticket_assets` links a ticket to assets; link and
+  unlink are recorded as events holding the asset ID and number without a foreign key, so
+  deleting a mistaken asset (which cascades its links) leaves the history readable. The list
+  search also matches a linked asset's number.
+- **Unread dot (M6, user's choice):** `ticket_reads` keeps when each staff member last opened
+  a ticket; a ticket is unread when the requester wrote after that (`last_requester_message_at`).
+  Opening the ticket page calls `POST /api/tickets/:id/read` (staff only, no token scope), and
+  any change a person makes marks it read for them. Tokens always see `unread: false`.
+- **Ticket scopes (M6):** `tickets:read` and `tickets:write` (presets `TICKETS_READ`,
+  `TICKETS_WRITE`) cover tickets, requesters, assignees, messages, status, assignee and links;
+  write does not imply read. A token with only asset scopes gets 403 on every ticket endpoint;
+  the test checks that against the OpenAPI document so a new route cannot be missed. "Mine" is
+  empty for a token. All four scopes are now issuable.
 - **CSV import:** comma-separated, UTF-8 (BOM allowed), header row names columns (`Number`,
   `Name`, `Status` and field labels or keys, any case). All-or-nothing in one transaction, at
   most 5,000 rows; every problem is reported with its line and column (HTTP 422); `dryRun=true`
