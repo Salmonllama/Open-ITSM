@@ -16,7 +16,7 @@ voice, logo) and the page mockups that every screen must follow.
 | M3 Status rules, assignment history, repairs, asset activity            | Done (CI green on PR #5)                                |
 | M4 QR tags, label printing, scan page with check in and out             | Done (CI green on PR #8)                                |
 | M5 Consumables, stock adjustments, repair link, low-stock notice        | Done (CI green on PR #11)                               |
-| M6 Tickets, requesters, queues, ticket page, linked assets, scopes      | Built; PR open, waiting on CI and review                |
+| M6 Tickets, requesters, queues, ticket page, linked assets, scopes      | Built; PR #12 open, waiting on CI and review            |
 
 Update this table when a milestone is committed.
 
