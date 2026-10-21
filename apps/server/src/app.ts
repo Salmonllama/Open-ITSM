@@ -15,18 +15,22 @@ import {
   serializerCompiler,
   validatorCompiler,
 } from 'fastify-type-provider-zod';
+import type { AttachmentStore } from './attachments.js';
 import { registerAuth, STAFF_ROLES, type TokenLimits } from './auth/http.js';
 import { SessionStore } from './auth/sessions.js';
 import { TokenStore } from './auth/tokens.js';
 import type { SetupToken } from './auth/setup-token.js';
 import type { Db } from './db/client.js';
 import { registerHealthRoute, type HealthCheck } from './health.js';
+import type { MailService } from './mail/service.js';
 import { registerAssetTypeRoutes } from './routes/asset-types.js';
 import { registerAssetRoutes } from './routes/assets.js';
 import { registerAuthRoutes } from './routes/auth.js';
 import { registerConsumableRoutes } from './routes/consumables.js';
+import { registerMailRoutes } from './routes/mail.js';
 import { registerServiceAccountRoutes } from './routes/service-accounts.js';
 import { registerSetupRoutes } from './routes/setup.js';
+import { registerTicketAttachmentRoutes } from './routes/ticket-attachments.js';
 import { registerTicketRoutes } from './routes/tickets.js';
 import { registerUserRoutes } from './routes/users.js';
 
@@ -37,6 +41,9 @@ export type AppOptions = {
   db: Db;
   sessionSecret: string;
   setupToken: SetupToken;
+  /** The Microsoft 365 mailbox: settings, checking the inbox and sending replies. */
+  mail: MailService;
+  attachments: AttachmentStore;
   /** Directory holding the built web UI. Static serving is skipped when unset or missing. */
   webRoot?: string | undefined;
   /** Per-token and invalid-token limits; tests lower them. */
@@ -107,7 +114,14 @@ export async function buildApp(options: AppOptions): Promise<FastifyInstance> {
   );
 
   registerHealthRoute(app, { version: options.version, checks: options.checks });
-  const deps = { db: options.db, sessions, tokens, setupToken: options.setupToken };
+  const deps = {
+    db: options.db,
+    sessions,
+    tokens,
+    setupToken: options.setupToken,
+    mail: options.mail,
+    attachments: options.attachments,
+  };
   registerSetupRoutes(app, deps);
   registerAuthRoutes(app, deps);
   registerUserRoutes(app, deps);
@@ -116,6 +130,8 @@ export async function buildApp(options: AppOptions): Promise<FastifyInstance> {
   registerAssetRoutes(app, deps);
   registerConsumableRoutes(app, deps);
   registerTicketRoutes(app, deps);
+  registerTicketAttachmentRoutes(app, deps);
+  registerMailRoutes(app, deps);
 
   const webRoot = options.webRoot ? path.resolve(options.webRoot) : undefined;
   const serveWeb = webRoot !== undefined && existsSync(path.join(webRoot, 'index.html'));

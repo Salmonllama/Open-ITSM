@@ -2,6 +2,7 @@ import {
   ASSET_EVENT_KINDS,
   ASSET_STATUSES,
   CONSUMABLE_ADJUSTMENT_KINDS,
+  EMAIL_STATUSES,
   FIELD_KINDS,
   TICKET_EVENT_KINDS,
   TICKET_MESSAGE_KINDS,
@@ -11,6 +12,7 @@ import {
 } from '@open-itsm/shared';
 import { sql } from 'drizzle-orm';
 import {
+  bigint,
   bigserial,
   boolean,
   check,
@@ -38,6 +40,7 @@ export const ticketStatus = pgEnum('ticket_status', TICKET_STATUSES);
 export const ticketSource = pgEnum('ticket_source', TICKET_SOURCES);
 export const ticketMessageKind = pgEnum('ticket_message_kind', TICKET_MESSAGE_KINDS);
 export const ticketEventKind = pgEnum('ticket_event_kind', TICKET_EVENT_KINDS);
+export const emailStatus = pgEnum('email_status', EMAIL_STATUSES);
 
 export const users = pgTable(
   'users',
@@ -452,6 +455,11 @@ export const ticketMessages = pgTable(
     fromName: text('from_name'),
     fromEmail: text('from_email'),
     graphMessageId: text('graph_message_id'),
+    /** The email's Message-ID header, for matching replies by In-Reply-To and References. */
+    internetMessageId: text('internet_message_id'),
+    conversationId: text('conversation_id'),
+    emailStatus: emailStatus('email_status'),
+    emailError: text('email_error'),
     emailedAt: timestamp('emailed_at', { withTimezone: true }),
     at: timestamp('at', { withTimezone: true }).notNull().defaultNow(),
     actorUserId: uuid('actor_user_id').references(() => users.id),
@@ -460,6 +468,16 @@ export const ticketMessages = pgTable(
   (t) => [
     index('ticket_messages_ticket_id_idx').on(t.ticketId, t.at),
     uniqueIndex('ticket_messages_graph_message_id_key').on(t.graphMessageId),
+    // One email arrives once, even if it is moved out of the inbox and back.
+    uniqueIndex('ticket_messages_inbound_internet_id_key')
+      .on(t.internetMessageId)
+      .where(sql`${t.kind} = 'inbound'`),
+    index('ticket_messages_internet_message_id_idx').on(t.internetMessageId),
+    index('ticket_messages_conversation_id_idx').on(t.conversationId),
+    check(
+      'ticket_messages_email_status_on_replies',
+      sql`(${t.kind} = 'reply') = (${t.emailStatus} is not null)`,
+    ),
     check(
       'ticket_messages_inbound_has_sender',
       sql`(${t.kind} = 'inbound') = (${t.fromEmail} is not null)`,
@@ -512,6 +530,56 @@ export const ticketEvents = pgTable(
     oneActor('ticket_events_one_actor', t.actorUserId, t.actorServiceAccountId),
   ],
 );
+
+/**
+ * Files on ticket messages, kept on the attachments volume (never in the database). An upload
+ * from the composer waits with no message until the reply or note it goes with is saved.
+ * An emailed attachment that was refused keeps a row with the reason and no file.
+ */
+export const ticketAttachments = pgTable(
+  'ticket_attachments',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    ticketId: uuid('ticket_id')
+      .notNull()
+      .references(() => tickets.id),
+    messageId: bigint('message_id', { mode: 'number' }).references(() => ticketMessages.id),
+    name: text('name').notNull(),
+    contentType: text('content_type').notNull(),
+    size: integer('size').notNull(),
+    /** Path under the attachments directory; null when the file was not kept. */
+    storageKey: text('storage_key'),
+    sha256: text('sha256'),
+    skippedReason: text('skipped_reason'),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    actorUserId: uuid('actor_user_id').references(() => users.id),
+    actorServiceAccountId: uuid('actor_service_account_id').references(() => serviceAccounts.id),
+  },
+  (t) => [
+    index('ticket_attachments_message_id_idx').on(t.messageId),
+    index('ticket_attachments_pending_idx')
+      .on(t.createdAt)
+      .where(sql`${t.messageId} is null`),
+    check('ticket_attachments_size', sql`${t.size} >= 0`),
+    check(
+      'ticket_attachments_kept_or_skipped',
+      sql`(${t.storageKey} is null) = (${t.skippedReason} is not null)`,
+    ),
+    oneActor('ticket_attachments_one_actor', t.actorUserId, t.actorServiceAccountId),
+  ],
+);
+
+/**
+ * Configuration as key and JSON value. A credential goes in `secret`, encrypted with
+ * APP_SECRET_KEY, and is never returned by the API.
+ */
+export const settings = pgTable('settings', {
+  key: text('key').primaryKey(),
+  value: jsonb('value').$type<Record<string, unknown>>().notNull().default({}),
+  secret: text('secret'),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedBy: uuid('updated_by').references(() => users.id),
+});
 
 /** Assets a ticket is about. Links come and go; ticket_events keeps the record of each. */
 export const ticketAssets = pgTable(

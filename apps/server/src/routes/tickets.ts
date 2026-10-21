@@ -1,5 +1,6 @@
 import {
   addTicketMessageRequestSchema,
+  OUTBOUND_ATTACHMENTS_MAX_BYTES,
   createTicketRequestSchema,
   errorResponseSchema,
   linkTicketAssetRequestSchema,
@@ -11,6 +12,7 @@ import {
   ticketListQuerySchema,
   ticketListResponseSchema,
   updateTicketRequestSchema,
+  type TicketAttachment,
   type TicketDetail,
   type TicketListQuery,
   type TicketListResponse,
@@ -43,6 +45,7 @@ import {
   assetTypes,
   requesters,
   serviceAccounts,
+  ticketAttachments,
   ticketAssets,
   ticketEvents,
   ticketMessages,
@@ -67,6 +70,17 @@ const NOT_FOUND = {
 const NOT_STAFF = {
   error: 'assignee_not_staff',
   message: 'Tickets can be assigned only to active administrators and technicians. Choose another.',
+} as const;
+
+const BAD_FILES = {
+  error: 'attachment_not_found',
+  message: 'An attached file is no longer waiting to be sent. Attach it again.',
+} as const;
+
+const TOO_LARGE = {
+  error: 'attachments_too_large',
+  message:
+    'Attachments on one reply can total at most 25 MB. Remove some, or share a link instead.',
 } as const;
 
 const NO_ASSET = {
@@ -184,7 +198,7 @@ async function loadDetail(
   const [found] = await selectSummaries(db, me).where(where);
   if (!found) return undefined;
   const t = found.row;
-  const [messages, events, [others], linked] = await Promise.all([
+  const [messages, events, [others], linked, files] = await Promise.all([
     db
       .select({ row: ticketMessages, userName: users.name, saName: serviceAccounts.name })
       .from(ticketMessages)
@@ -228,7 +242,24 @@ async function loadDetail(
       .innerJoin(assetTypes, eq(assetTypes.id, assets.assetTypeId))
       .where(eq(ticketAssets.ticketId, t.id))
       .orderBy(asc(ticketAssets.linkedAt), asc(assets.number)),
+    db
+      .select({
+        id: ticketAttachments.id,
+        messageId: ticketAttachments.messageId,
+        name: ticketAttachments.name,
+        contentType: ticketAttachments.contentType,
+        size: ticketAttachments.size,
+        skippedReason: ticketAttachments.skippedReason,
+      })
+      .from(ticketAttachments)
+      .where(eq(ticketAttachments.ticketId, t.id))
+      .orderBy(asc(ticketAttachments.createdAt), asc(ticketAttachments.name)),
   ]);
+  const filesByMessage = new Map<number, TicketAttachment[]>();
+  for (const { messageId, ...file } of files) {
+    if (messageId === null) continue;
+    filesByMessage.set(messageId, [...(filesByMessage.get(messageId) ?? []), file]);
+  }
   const people = await loadUserRefs(db, [
     ...new Set(
       events
@@ -254,6 +285,9 @@ async function loadDetail(
           ? { name: m.row.fromName ?? '', email: m.row.fromEmail }
           : null,
       emailedAt: iso(m.row.emailedAt),
+      emailStatus: m.row.emailStatus,
+      emailError: m.row.emailError,
+      attachments: filesByMessage.get(m.row.id) ?? [],
     })),
     events: events.map((e) => ({
       id: e.row.id,
@@ -396,7 +430,7 @@ async function linkAssets(
   return true;
 }
 
-export function registerTicketRoutes(app: FastifyInstance, { db }: RouteDeps) {
+export function registerTicketRoutes(app: FastifyInstance, { db, mail }: RouteDeps) {
   const r = app.withTypeProvider<ZodTypeProvider>();
 
   r.get(
@@ -570,7 +604,7 @@ export function registerTicketRoutes(app: FastifyInstance, { db }: RouteDeps) {
       schema: {
         summary: 'Open a ticket for a requester, with what they asked as its first message',
         description:
-          'Until email arrives (M7), technicians open tickets from the dashboard and scripts open them with a token; the source is `dashboard` or `api` accordingly. The requester is found by email, or added; a blank name on a known requester is filled in.',
+          'Email to the support mailbox opens tickets on its own (source `email`). Technicians can also open one from the dashboard, and scripts with a token; the source is `dashboard` or `api` accordingly. The requester is found by email, or added; a blank name on a known requester is filled in.',
         tags: ['tickets'],
         body: createTicketRequestSchema,
         response: { 201: ticketDetailSchema, 409: errorResponseSchema },
@@ -683,23 +717,56 @@ export function registerTicketRoutes(app: FastifyInstance, { db }: RouteDeps) {
       schema: {
         summary: 'Reply to the requester or add an internal note',
         description:
-          'A reply to a New ticket moves it to In progress unless `status` is given. Notes are for staff only and never change the status on their own. No mailbox is connected until M7, so replies are saved but not emailed (`emailedAt` is null).',
+          'A reply to a New ticket moves it to In progress unless `status` is given. Notes are for staff only, are never emailed and never change the status on their own. A reply is emailed to the requester when the mailbox is connected (`emailStatus` `queued`, then `sent` or `failed`); otherwise it is saved only (`not_sent`). `attachmentIds` are files uploaded to this ticket first with `POST /api/tickets/:id/attachments`.',
         tags: ['tickets'],
         params: idParams,
         body: addTicketMessageRequestSchema,
-        response: { 200: ticketDetailSchema, 404: errorResponseSchema },
+        response: { 200: ticketDetailSchema, 404: errorResponseSchema, 409: errorResponseSchema },
       },
     },
     async (request, reply) => {
       const { id } = request.params;
-      const { kind, body, status } = request.body;
-      const found = await db.transaction(async (tx: Tx) => {
+      const { kind, body, status, attachmentIds } = request.body;
+      const emailing = kind === 'reply' && (await mail.canSend());
+      const outcome = await db.transaction(async (tx: Tx) => {
         const current = await lockTicket(tx, id);
-        if (!current) return false;
+        if (!current) return NOT_FOUND;
+        const fileIds = [...new Set(attachmentIds)];
+        if (fileIds.length > 0) {
+          const pending = await tx
+            .select({ id: ticketAttachments.id, size: ticketAttachments.size })
+            .from(ticketAttachments)
+            .where(
+              and(
+                inArray(ticketAttachments.id, fileIds),
+                eq(ticketAttachments.ticketId, id),
+                isNull(ticketAttachments.messageId),
+              ),
+            )
+            .for('update');
+          if (pending.length !== fileIds.length) return BAD_FILES;
+          const total = pending.reduce((sum, f) => sum + f.size, 0);
+          if (kind === 'reply' && total > OUTBOUND_ATTACHMENTS_MAX_BYTES) return TOO_LARGE;
+        }
         const now = new Date();
-        await tx
+        const [message] = await tx
           .insert(ticketMessages)
-          .values({ ticketId: id, kind, body, at: now, ...actorOf(request) });
+          .values({
+            ticketId: id,
+            kind,
+            body,
+            at: now,
+            ...(kind === 'reply' ? { emailStatus: emailing ? 'queued' : 'not_sent' } : {}),
+            ...actorOf(request),
+          })
+          .returning({ id: ticketMessages.id });
+        if (!message) throw new Error('message insert returned nothing');
+        if (fileIds.length > 0) {
+          await tx
+            .update(ticketAttachments)
+            .set({ messageId: message.id })
+            .where(inArray(ticketAttachments.id, fileIds));
+        }
         await tx
           .update(tickets)
           .set({
@@ -715,9 +782,53 @@ export function registerTicketRoutes(app: FastifyInstance, { db }: RouteDeps) {
           status ?? (kind === 'reply' && current.status === 'new' ? 'in_progress' : undefined);
         await applyChange(tx, request, id, current, { status: next }, now);
         await markRead(tx, request, id, now);
-        return true;
+        return message.id;
       });
-      if (!found) return reply.code(404).send(NOT_FOUND);
+      if (outcome === NOT_FOUND) return reply.code(404).send(NOT_FOUND);
+      if (typeof outcome !== 'number') return reply.code(409).send(outcome);
+      if (emailing) await mail.queue.send(outcome);
+      return loadWritten(db, request, id);
+    },
+  );
+
+  r.post(
+    '/api/tickets/:id/messages/:messageId/resend',
+    {
+      config: { access: TICKETS_WRITE },
+      schema: {
+        summary: 'Try again to email a reply that failed',
+        tags: ['tickets'],
+        params: z.object({ id: z.uuid(), messageId: z.coerce.number().int().min(1) }),
+        response: { 200: ticketDetailSchema, 404: errorResponseSchema, 409: errorResponseSchema },
+      },
+    },
+    async (request, reply) => {
+      const { id, messageId } = request.params;
+      if (!(await mail.canSend())) {
+        return reply.code(409).send({
+          error: 'mail_off',
+          message:
+            'No mailbox is connected, or it is switched off. An administrator can connect it under Email.',
+        });
+      }
+      const [updated] = await db
+        .update(ticketMessages)
+        .set({ emailStatus: 'queued', emailError: null })
+        .where(
+          and(
+            eq(ticketMessages.id, messageId),
+            eq(ticketMessages.ticketId, id),
+            eq(ticketMessages.emailStatus, 'failed'),
+          ),
+        )
+        .returning({ id: ticketMessages.id });
+      if (!updated) {
+        return reply.code(409).send({
+          error: 'not_failed',
+          message: 'Only a reply that failed to send can be sent again. Reload the page.',
+        });
+      }
+      await mail.queue.send(updated.id);
       return loadWritten(db, request, id);
     },
   );

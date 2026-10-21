@@ -1,9 +1,12 @@
 import pino from 'pino';
 import { buildApp } from './app.js';
+import { AttachmentStore } from './attachments.js';
 import { SetupToken } from './auth/setup-token.js';
 import { ConfigError, loadConfig } from './config.js';
 import { checkDatabase, createDb, createPool, runMigrations } from './db/client.js';
 import { loggerOptions } from './logging.js';
+import { startMailJobs } from './mail/jobs.js';
+import { MailService } from './mail/service.js';
 import { checkQueue, createQueue } from './queue.js';
 import { hasUsers } from './routes/setup.js';
 
@@ -42,6 +45,24 @@ async function main(): Promise<void> {
   const queue = createQueue(config.databaseUrl, logger);
   await queue.start();
 
+  const attachments = new AttachmentStore(config.attachmentsDir);
+  const mail = new MailService(
+    db,
+    {
+      secretKey: config.appSecretKey,
+      graphUrl: config.graphUrl,
+      loginUrl: config.loginUrl,
+      store: attachments,
+    },
+    logger.child({ component: 'mail' }),
+  );
+  await startMailJobs(queue, {
+    db,
+    mail,
+    store: attachments,
+    log: logger.child({ component: 'jobs' }),
+  });
+
   const app = await buildApp({
     version: config.version,
     logger: logOptions,
@@ -52,6 +73,8 @@ async function main(): Promise<void> {
     db,
     sessionSecret: config.sessionSecret,
     setupToken,
+    mail,
+    attachments,
     webRoot: config.webRoot,
   });
 
