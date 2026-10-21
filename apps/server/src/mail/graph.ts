@@ -64,7 +64,7 @@ function graphMessage(status: number, code: string | null, mailbox: string): str
     return 'Microsoft refused the app. Check that the app has the Mail permissions and that admin consent was granted.';
   }
   if (status === 403 || code === 'ErrorAccessDenied') {
-    return `The app is not allowed to use ${mailbox}. Give it the Application Mail.ReadWrite and Application Mail.Send roles scoped to this mailbox, as the setup steps show. Changes can take up to an hour to apply.`;
+    return `The app is not allowed to use ${mailbox}. Give it the Application Mail.ReadWrite and Application Mail.Send roles scoped to this mailbox, as the setup steps show. Changes can take up to two hours to apply.`;
   }
   if (status === 404 || code === 'ErrorInvalidUser' || code === 'MailboxNotEnabledForRESTAPI') {
     return `Microsoft found no mailbox ${mailbox}. Check the address; a shared mailbox must exist in Exchange Online.`;

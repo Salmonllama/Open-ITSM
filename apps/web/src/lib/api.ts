@@ -28,7 +28,7 @@ export function setCsrfToken(token: string | undefined) {
   csrfToken = token;
 }
 
-type Method = 'GET' | 'POST' | 'PATCH' | 'DELETE';
+type Method = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
 
 export async function apiRequest<S extends z.ZodType>(
   method: Method,
@@ -36,7 +36,7 @@ export async function apiRequest<S extends z.ZodType>(
   options: {
     body?: unknown;
     /** A body sent as is with this content type, such as a CSV file. */
-    raw?: { text: string; contentType: string };
+    raw?: { text: string | Blob; contentType: string };
     schema?: S;
     /** Error statuses whose body still matches `schema`, returned rather than thrown. */
     okStatuses?: number[];

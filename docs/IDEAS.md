@@ -60,3 +60,12 @@ says so.
 
 - **Tickets on the asset page.** Tickets can link assets (M6), but the asset page does not list
   the tickets that name it. A Tickets card there would show an asset's support history.
+- **Change notifications instead of polling.** M7 checks the mailbox each minute with a delta
+  query. Graph webhooks would bring mail in seconds, but need a public HTTPS endpoint and
+  subscription renewal, which many self-hosted installs do not have.
+- **Certificate credentials.** The mailbox app signs in with a client secret that expires. A
+  certificate (uploaded to the app registration) would last longer and never travel as text.
+- **Email signatures and quoted history.** Replies go out as the reply text only. A per-tech or
+  team signature, and the requester's previous message quoted below, would read more like mail.
+- **CC on tickets.** Replies go to the requester only; people copied on the first email are not
+  kept or copied back.

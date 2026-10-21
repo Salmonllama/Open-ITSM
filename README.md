@@ -31,9 +31,13 @@ script arrive with the alpha release.
 - Tickets, numbered from #1: a list with queues (All open, Unassigned, Mine, Waiting on user,
   Closed), search and filters, and a ticket page with the conversation, replies and internal
   notes, status, assignee, linked assets, the requester and a history of every change. An
-  unread dot marks tickets the requester wrote on since you last opened them. Technicians open
-  tickets with New ticket until email arrives; replies are saved but not emailed until a
-  mailbox is connected.
+  unread dot marks tickets the requester wrote on since you last opened them. Technicians can
+  also open tickets with New ticket.
+- Email through one Microsoft 365 shared mailbox (Email, for administrators): email to it opens a
+  ticket, replies are emailed with `[#N]` in the subject, and the requester's answers land on
+  the same ticket. Files travel both ways and are kept on the attachments volume. The page
+  walks through the app registration and the Exchange commands that limit the app to that one
+  mailbox, tests the connection, and warns 30 days before the client secret expires.
 - Service accounts with scoped API tokens for scripts; see `docs/api.md`.
 
 ## Development

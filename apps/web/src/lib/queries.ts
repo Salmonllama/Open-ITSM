@@ -8,6 +8,8 @@ import {
   consumableDetailSchema,
   consumableListResponseSchema,
   lowStockSummarySchema,
+  mailSettingsSchema,
+  mailStatusSchema,
   openRepairListSchema,
   requesterListSchema,
   serviceAccountSchema,
@@ -175,3 +177,15 @@ export function storeSession(queryClient: QueryClient, session: SessionResponse 
   setCsrfToken(session?.csrfToken);
   queryClient.setQueryData(sessionQuery.queryKey, session);
 }
+
+/** The mailbox state for staff; refreshed each minute, as often as the mailbox is checked. */
+export const mailStatusQuery = queryOptions({
+  queryKey: ['mail', 'status'],
+  queryFn: () => apiRequest('GET', '/api/mail/status', { schema: mailStatusSchema }),
+  refetchInterval: 60_000,
+});
+
+export const mailSettingsQuery = queryOptions({
+  queryKey: ['mail', 'settings'],
+  queryFn: () => apiRequest('GET', '/api/settings/mail', { schema: mailSettingsSchema }),
+});

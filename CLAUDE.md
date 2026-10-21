@@ -16,7 +16,8 @@ voice, logo) and the page mockups that every screen must follow.
 | M3 Status rules, assignment history, repairs, asset activity            | Done (CI green on PR #5)                                |
 | M4 QR tags, label printing, scan page with check in and out             | Done (CI green on PR #8)                                |
 | M5 Consumables, stock adjustments, repair link, low-stock notice        | Done (CI green on PR #11)                               |
-| M6 Tickets, requesters, queues, ticket page, linked assets, scopes      | Built; PR #12 open, waiting on CI and review            |
+| M6 Tickets, requesters, queues, ticket page, linked assets, scopes      | Done (CI green on PR #12)                               |
+| M7 Microsoft 365 mailbox, email intake, threading, replies, attachments | Built; PR open, waiting on CI and a real-tenant check   |
 
 Update this table when a milestone is committed.
 
@@ -92,13 +93,20 @@ apps/server       Fastify API; also serves the built web UI from WEB_ROOT
   src/routes/     setup, auth, users and service-accounts (admin only), asset-types, assets,
                   asset-import, asset-history (assign, return, repairs, history, suggestions),
                   consumables (stock, adjustments, low stock, open repairs), tickets (list,
-                  requesters, assignees, messages, status/assignee, linked assets, read marks);
+                  requesters, assignees, messages, status/assignee, linked assets, read marks,
+                  resend), ticket-attachments (upload, download, remove), mail (settings, status);
                   deps.ts holds RouteDeps and the ADMIN_ONLY/ASSETS_* access presets
+  src/mail/       graph.ts (Graph client, sign-in, friendly errors), inbound.ts (delta poll,
+                  threading, skips), outbound.ts (send a reply as email), headers.ts (pure
+                  helpers), service.ts (settings, encrypted secret, status, test), jobs.ts (pg-boss)
+  src/crypto.ts   AES-256-GCM for stored credentials under APP_SECRET_KEY
+  src/attachments.ts  files on the attachments volume (ATTACHMENTS_DIR), safe names, downloads
   src/audit.ts    append-only audit log writer (actor is a user or a service account)
   src/recovery.ts recovery commands; src/cli.ts is the `itsm` entrypoint in the image
   drizzle/        generated SQL migrations, applied at startup in one transaction
   test/           vitest; *.integration.test.ts need TEST_DATABASE_URL (each file gets its own DB);
-                  fixtures/tickets.ts holds requester tickets until email intake (M7)
+                  fixtures/tickets.ts holds sample tickets; fixtures/graph.ts is the Microsoft
+                  sign-in and Graph mail stand-in the email tests run against
 apps/web          React + Vite + TanStack Router/Query + Tailwind v4
   src/index.css   design-system tokens (light, dark, OS-dark), Tailwind colour mappings, type-* styles
   src/components/ ui/ (Button, Input/Select/Label, Card/ErrorMessage, StatusBadge, Table), FormField,
@@ -106,14 +114,15 @@ apps/web          React + Vite + TanStack Router/Query + Tailwind v4
   src/routes/     setup, login, authed layout (sidebar shell; redirects to setup/login), index,
                   assets (list), asset-new, asset-view (view + edit), asset-import, asset-types
                   (list + one type), consumables (list + one item), tickets (list),
-                  ticket-view (conversation, composer, side cards), admin-users,
-                  admin-service-accounts
+                  ticket-view (conversation, attachments, composer, side cards), admin-users,
+                  admin-service-accounts, admin-email (mailbox settings and setup steps)
   src/components/asset-form.tsx  number, name, status and the type's custom fields
   src/components/asset-history.tsx  asset page cards (assigned to, assignment history, repairs,
                   activity) and the assign/return/repair/status dialogs
   src/components/consumable-dialogs.tsx  new/edit consumable and the add/use/count dialog
   src/components/low-stock.tsx  Low stock badge and the notice above the asset list
   src/components/ticket-dialogs.tsx  New ticket and Link asset dialogs
+  src/components/mail-notice.tsx  the notice above the ticket list when the mailbox needs attention
   src/components/search-field.tsx, filter-tabs.tsx  list search box and queue/status tabs
   src/components/asset-tag.tsx  the printed tag (QR code drawn as an SVG path)
   src/components/qr-camera.tsx  camera preview that reads QR codes
@@ -122,7 +131,8 @@ apps/web          React + Vite + TanStack Router/Query + Tailwind v4
   src/lib/        api.ts (fetch wrapper, CSRF header, CSV import), queries.ts, assets.ts (status
                   tones, date and field formatting), theme.ts, roles.ts, scan.ts (tag URLs, reading
                   scans), labels.ts (print layouts), consumables.ts (change labels, notice text),
-                  tickets.ts (status tones, source labels, times, history lines)
+                  tickets.ts (status tones, source labels, times, history lines), mail.ts
+                  (mailbox state words, reply email status, file sizes)
   public/brand/   logo SVGs from the design system (lockup, reversed, mark, favicon, app icon)
 packages/shared   zod schemas and types shared by server and web (auth, assets, tokens,
                   consumables, tickets)
@@ -353,6 +363,45 @@ Dockerfile        multi-stage; runtime runs as `node`, files root-owned
   write does not imply read. A token with only asset scopes gets 403 on every ticket endpoint;
   the test checks that against the OpenAPI document so a new route cannot be missed. "Mine" is
   empty for a token. All four scopes are now issuable.
+- **Microsoft 365 mailbox (M7, user's choice: client secret, built against a Graph stand-in):**
+  Graph app-only (client credentials) for one shared mailbox. Admins enter tenant ID, client
+  ID, client secret and its expiry date, and mailbox on Email (`/admin/email`, ADMIN_ONLY, no
+  token can reach it). The secret is AES-256-GCM encrypted under APP_SECRET_KEY (`settings.secret`,
+  context bound as AAD), never returned or logged; a blank secret keeps the stored one. Expiry is
+  entered by hand (reading it from Graph would need Application.Read.All) and warned 30 days
+  ahead (sidebar, ticket list notice, Email page). Access is granted with Exchange RBAC for
+  Applications (Application Mail.ReadWrite and Mail.Send, management scope on the mailbox),
+  not Entra Mail permissions, which reach every mailbox; the page prints the cmdlets. Settings
+  changes, tests and disconnects are audited (`settings.mail_*`) without the secret.
+- **Email intake (M7):** pg-boss `mail-poll` runs each minute (exclusive policy) and the state row
+  is locked per round, so rounds never overlap. Inbox delta query with immutable IDs and bodies
+  as plain text (`Prefer: outlook.body-content-type="text"`), so no email HTML is ever rendered
+  and no remote image is fetched. The first sync filters to mail received after the mailbox was
+  connected; a new mailbox starts afresh. The delta link is saved only when a round finishes; a
+  410 restarts the sync; an email that fails 3 rounds is skipped. Matching: `[#N]` in the
+  subject, then In-Reply-To/References against stored Message-IDs, then Graph conversationId,
+  else a new ticket (source `email`, requester found or added). Skipped: repeats (Graph ID, and
+  inbound Message-ID unique), drafts, mail from the mailbox, automatic mail (Auto-Submitted,
+  Precedence, X-Autoreply, List-Id, multipart/report, mailer-daemon/no-reply). Replies to a
+  ticket use Graph's uniqueBody. An email on a Waiting, Resolved or Closed ticket moves it to In
+  progress (system event).
+- **Outbound replies (M7):** a reply saved while the mailbox is connected is `queued` and sent by
+  the `mail-send` job (stately per message, 6 retries with backoff); otherwise `not_sent` and
+  never sent later. Sending answers the requester's latest email (createReply) or writes a new
+  one, subject `RE: [#N] subject`, plain text, to the requester only; the row is locked while
+  it sends, the draft is deleted on failure (never after send was asked), and the sent
+  Message-ID and conversationId are stored for threading. Temporary errors stay queued; others
+  or the last attempt set `failed` with the reason, and Send again re-queues it. The trigger
+  allows only a not-yet-sent reply's email fields to change. Housekeeping (hourly) re-queues
+  replies stuck queued for 15 minutes and removes unused uploads after a day.
+- **Attachments (M7):** stored on the attachments volume under `yyyy/mm/<uuid>` (sha256 in the
+  DB, never the file). At most 25 MB each and 20 per message; executables and scripts (.exe,
+  .js, .ps1 and similar) are refused both ways; inbound refused files keep a row with the
+  reason. Composer uploads are raw bodies (`POST /api/tickets/:id/attachments?name=`), wait
+  unattached, and join one message once (trigger). Downloads are always `attachment` with
+  nosniff and `CSP: sandbox`. Notes can carry files; they are never emailed.
+- **New dependencies in M7:** none. Graph is called with `fetch`; uploads use a raw body parser
+  scoped to the upload route rather than `@fastify/multipart`.
 - **CSV import:** comma-separated, UTF-8 (BOM allowed), header row names columns (`Number`,
   `Name`, `Status` and field labels or keys, any case). All-or-nothing in one transaction, at
   most 5,000 rows; every problem is reported with its line and column (HTTP 422); `dryRun=true`

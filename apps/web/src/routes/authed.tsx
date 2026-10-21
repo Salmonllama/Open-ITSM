@@ -7,6 +7,7 @@ import {
   KeyRound,
   Laptop,
   LogOut,
+  Mail,
   Menu,
   Package,
   ScanLine,
@@ -21,11 +22,13 @@ import { Button } from '@/components/ui/button';
 import { apiRequest } from '@/lib/api';
 import {
   lowStockQuery,
+  mailStatusQuery,
   sessionQuery,
   setupStatusQuery,
   storeSession,
   ticketCountsQuery,
 } from '@/lib/queries';
+import { mailNeedsAttention } from '@/lib/mail';
 import { roleLabels } from '@/lib/roles';
 import { cn } from '@/lib/utils';
 import { rootRoute } from './root';
@@ -59,6 +62,7 @@ function AuthedLayout() {
 
   const lowStock = useQuery({ ...lowStockQuery, enabled: !!session });
   const ticketCounts = useQuery({ ...ticketCountsQuery, enabled: !!session });
+  const mailStatus = useQuery({ ...mailStatusQuery, enabled: !!session });
 
   if (!session) return null;
 
@@ -119,6 +123,19 @@ function AuthedLayout() {
             onNavigate={onNavigate}
           >
             Service accounts
+          </NavLink>
+          <NavLink to="/admin/email" icon={<Mail strokeWidth={1.75} />} onNavigate={onNavigate}>
+            <span className="flex-1">Email</span>
+            {mailStatus.data && mailNeedsAttention(mailStatus.data) && (
+              <span
+                className={cn(
+                  'type-caption',
+                  mailStatus.data.state === 'secret_expiring' ? 'text-warning' : 'text-danger',
+                )}
+              >
+                {mailStatus.data.state === 'secret_expiring' ? 'Expires soon' : 'Needs attention'}
+              </span>
+            )}
           </NavLink>
         </>
       )}
@@ -258,7 +275,8 @@ function NavLink({
     | '/asset-types'
     | '/consumables'
     | '/admin/users'
-    | '/admin/service-accounts';
+    | '/admin/service-accounts'
+    | '/admin/email';
   exact?: boolean;
   icon: ReactNode;
   onNavigate?: () => void;

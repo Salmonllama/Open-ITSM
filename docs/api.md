@@ -136,6 +136,25 @@ curl -fsS -X PATCH -H "Authorization: Bearer $OPEN_ITSM_TOKEN" -H 'Content-Type:
 
 `POST /api/tickets` opens a ticket (`subject`, `requester` with `email` and an optional `name`,
 `message`, and optional `assetIds`). `POST /api/tickets/<id>/messages` adds a `reply` or a
-`note` with a `body`; until a mailbox is connected (M7), replies are saved but not emailed.
+`note` with a `body`. While a mailbox is connected, a reply is emailed to the requester
+(`emailStatus` goes `queued`, then `sent` or `failed`); otherwise it is saved only (`not_sent`).
 `GET /api/tickets` searches with `q`, `queue` (`open`, `unassigned`, `waiting`, `closed`),
 `status`, `assignee` and `source`.
+
+## Attach a file to a reply
+
+Upload the file as the request body with its own content type and its name in `name`, then
+name it in `attachmentIds` on the reply or note. Files are at most 25 MB; programs and
+scripts are refused. An upload no message uses is removed after a day.
+
+```sh
+file=$(curl -fsS -X POST -H "Authorization: Bearer $OPEN_ITSM_TOKEN" \
+  -H 'Content-Type: application/pdf' --data-binary @steps.pdf \
+  "https://itsm.example.com/api/tickets/$id/attachments?name=steps.pdf" | jq -r .id)
+curl -fsS -X POST -H "Authorization: Bearer $OPEN_ITSM_TOKEN" -H 'Content-Type: application/json' \
+  -d "{\"kind\":\"reply\",\"body\":\"Steps attached.\",\"attachmentIds\":[\"$file\"]}" \
+  "https://itsm.example.com/api/tickets/$id/messages"
+```
+
+Mailbox settings are not reachable with a token; an administrator manages them on the Email
+page.
