@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, createRoute, useNavigate } from '@tanstack/react-router';
 import { Minus, PackagePlus, Pencil, Plus, Tally5, Trash2 } from 'lucide-react';
-import { useEffect, useId, useState } from 'react';
+import { useState } from 'react';
 import { z } from 'zod';
 import { ConfirmDialog } from '@/components/confirm-dialog';
 import {
@@ -9,17 +9,17 @@ import {
   StockDialog,
   type StockAction,
 } from '@/components/consumable-dialogs';
+import { FilterTabs } from '@/components/filter-tabs';
 import { LowStockBadge } from '@/components/low-stock';
 import { PageHeader } from '@/components/page-header';
+import { SearchField } from '@/components/search-field';
 import { Button } from '@/components/ui/button';
 import { Card, ErrorMessage } from '@/components/ui/card';
-import { Input, Label } from '@/components/ui/input';
 import { Table, Td, Th } from '@/components/ui/table';
 import { apiRequest } from '@/lib/api';
 import { formatDate } from '@/lib/assets';
 import { adjustmentLabels, formatChange } from '@/lib/consumables';
 import { consumableQuery, consumablesQuery } from '@/lib/queries';
-import { cn } from '@/lib/utils';
 import { authedRoute } from './authed';
 
 const PAGE_SIZE = 25;
@@ -79,38 +79,22 @@ function ConsumablesPage() {
         }
       />
 
-      <div
-        role="group"
-        aria-label="Filter by stock"
-        className="flex flex-wrap gap-1 border-b border-line"
-      >
-        {[
-          { low: false, label: 'All', count: data?.allCount },
-          { low: true, label: 'Low stock', count: data?.lowCount },
-        ].map((tab) => {
-          const on = tab.low === !!search.low;
-          return (
-            <button
-              key={tab.label}
-              type="button"
-              aria-pressed={on}
-              onClick={() => setFilter({ low: tab.low || undefined })}
-              className={cn(
-                '-mb-px h-10 cursor-pointer border-0 border-b-2 border-transparent bg-transparent px-3 type-label text-ink',
-                'focus-visible:shadow-focus focus-visible:outline-2 focus-visible:outline-transparent',
-                on && 'border-pine font-semibold text-pine',
-              )}
-            >
-              {tab.label}{' '}
-              {tab.count !== undefined && (
-                <span className="font-normal text-ink-muted">{tab.count}</span>
-              )}
-            </button>
-          );
-        })}
-      </div>
+      <FilterTabs
+        label="Filter by stock"
+        current={search.low ? 'low' : 'all'}
+        onChange={(key) => setFilter({ low: key === 'low' || undefined })}
+        tabs={[
+          { key: 'all', label: 'All', count: data?.allCount },
+          { key: 'low', label: 'Low stock', count: data?.lowCount },
+        ]}
+      />
 
-      <SearchField value={search.q ?? ''} onChange={(q) => setFilter({ q: q || undefined })} />
+      <SearchField
+        value={search.q ?? ''}
+        onChange={(q) => setFilter({ q: q || undefined })}
+        placeholder="Name"
+        className="max-w-xl"
+      />
 
       <ErrorMessage error={list.error} />
       {list.isPending && <p className="m-0 text-ink-muted">Loading consumables…</p>}
@@ -191,35 +175,6 @@ function ConsumablesPage() {
         }
       />
     </>
-  );
-}
-
-/** Searches as you type, after a short pause, so each keystroke does not hit the server. */
-function SearchField({ value, onChange }: { value: string; onChange: (value: string) => void }) {
-  const id = useId();
-  const [text, setText] = useState(value);
-  const [seen, setSeen] = useState(value);
-  if (value !== seen) {
-    setSeen(value);
-    setText(value);
-  }
-  useEffect(() => {
-    if (text.trim() === value) return;
-    const timer = setTimeout(() => onChange(text.trim()), 300);
-    return () => clearTimeout(timer);
-  }, [text, value, onChange]);
-
-  return (
-    <div className="flex max-w-xl flex-col gap-2">
-      <Label htmlFor={id}>Search</Label>
-      <Input
-        id={id}
-        type="search"
-        placeholder="Name"
-        value={text}
-        onChange={(e) => setText(e.target.value)}
-      />
-    </div>
   );
 }
 

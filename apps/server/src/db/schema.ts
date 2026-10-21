@@ -3,6 +3,10 @@ import {
   ASSET_STATUSES,
   CONSUMABLE_ADJUSTMENT_KINDS,
   FIELD_KINDS,
+  TICKET_EVENT_KINDS,
+  TICKET_MESSAGE_KINDS,
+  TICKET_SOURCES,
+  TICKET_STATUSES,
   TOKEN_SCOPES,
 } from '@open-itsm/shared';
 import { sql } from 'drizzle-orm';
@@ -15,6 +19,7 @@ import {
   jsonb,
   pgEnum,
   pgTable,
+  primaryKey,
   text,
   timestamp,
   uniqueIndex,
@@ -29,6 +34,10 @@ export const consumableAdjustmentKind = pgEnum(
   'consumable_adjustment_kind',
   CONSUMABLE_ADJUSTMENT_KINDS,
 );
+export const ticketStatus = pgEnum('ticket_status', TICKET_STATUSES);
+export const ticketSource = pgEnum('ticket_source', TICKET_SOURCES);
+export const ticketMessageKind = pgEnum('ticket_message_kind', TICKET_MESSAGE_KINDS);
+export const ticketEventKind = pgEnum('ticket_event_kind', TICKET_EVENT_KINDS);
 
 export const users = pgTable(
   'users',
@@ -379,6 +388,165 @@ export const consumableAdjustments = pgTable(
     ),
     oneActor('consumable_adjustments_one_actor', t.actorUserId, t.actorServiceAccountId),
   ],
+);
+
+/**
+ * The people who raise tickets. End users are not accounts until M10, so a requester is a name
+ * and an email, unique ignoring case (stored lowercase). Tickets for the same email share one.
+ */
+export const requesters = pgTable(
+  'requesters',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    name: text('name').notNull().default(''),
+    email: text('email').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex('requesters_email_key').on(t.email),
+    check('requesters_email_normalized', sql`${t.email} = lower(btrim(${t.email}))`),
+  ],
+);
+
+/** A support request. The number is a plain sequence from 1, shown as #1 (and in M7 subjects). */
+export const tickets = pgTable(
+  'tickets',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    number: integer('number').notNull().generatedByDefaultAsIdentity(),
+    subject: text('subject').notNull(),
+    status: ticketStatus('status').notNull().default('new'),
+    source: ticketSource('source').notNull(),
+    requesterId: uuid('requester_id')
+      .notNull()
+      .references(() => requesters.id),
+    assigneeId: uuid('assignee_id').references(() => users.id),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    lastActivityAt: timestamp('last_activity_at', { withTimezone: true }).notNull().defaultNow(),
+    firstResponseAt: timestamp('first_response_at', { withTimezone: true }),
+    lastRequesterMessageAt: timestamp('last_requester_message_at', { withTimezone: true }),
+  },
+  (t) => [
+    uniqueIndex('tickets_number_key').on(t.number),
+    index('tickets_status_activity_idx').on(t.status, t.lastActivityAt),
+    index('tickets_assignee_id_idx').on(t.assigneeId),
+    index('tickets_requester_id_idx').on(t.requesterId),
+    check('tickets_subject_not_blank', sql`btrim(${t.subject}) <> ''`),
+  ],
+);
+
+/**
+ * The conversation on a ticket: the requester's messages, replies to them and internal notes.
+ * Append only. The Graph message ID (from M7) is unique, so one email never makes two tickets.
+ * A reply's `emailed_at` stays null when no mailbox was connected to send it.
+ */
+export const ticketMessages = pgTable(
+  'ticket_messages',
+  {
+    id: bigserial('id', { mode: 'number' }).primaryKey(),
+    ticketId: uuid('ticket_id')
+      .notNull()
+      .references(() => tickets.id),
+    kind: ticketMessageKind('kind').notNull(),
+    body: text('body').notNull(),
+    fromName: text('from_name'),
+    fromEmail: text('from_email'),
+    graphMessageId: text('graph_message_id'),
+    emailedAt: timestamp('emailed_at', { withTimezone: true }),
+    at: timestamp('at', { withTimezone: true }).notNull().defaultNow(),
+    actorUserId: uuid('actor_user_id').references(() => users.id),
+    actorServiceAccountId: uuid('actor_service_account_id').references(() => serviceAccounts.id),
+  },
+  (t) => [
+    index('ticket_messages_ticket_id_idx').on(t.ticketId, t.at),
+    uniqueIndex('ticket_messages_graph_message_id_key').on(t.graphMessageId),
+    check(
+      'ticket_messages_inbound_has_sender',
+      sql`(${t.kind} = 'inbound') = (${t.fromEmail} is not null)`,
+    ),
+    check(
+      'ticket_messages_only_replies_emailed',
+      sql`${t.emailedAt} is null or ${t.kind} = 'reply'`,
+    ),
+    oneActor('ticket_messages_one_actor', t.actorUserId, t.actorServiceAccountId),
+  ],
+);
+
+/**
+ * Status, assignee and linked-asset changes on a ticket, and its creation. Append only. Linked
+ * assets are recorded by ID and number without a foreign key, so deleting an asset entered by
+ * mistake leaves the history readable.
+ */
+export const ticketEvents = pgTable(
+  'ticket_events',
+  {
+    id: bigserial('id', { mode: 'number' }).primaryKey(),
+    ticketId: uuid('ticket_id')
+      .notNull()
+      .references(() => tickets.id),
+    kind: ticketEventKind('kind').notNull(),
+    fromStatus: ticketStatus('from_status'),
+    toStatus: ticketStatus('to_status'),
+    fromAssigneeId: uuid('from_assignee_id').references(() => users.id),
+    toAssigneeId: uuid('to_assignee_id').references(() => users.id),
+    assetId: uuid('asset_id'),
+    assetNumber: text('asset_number'),
+    at: timestamp('at', { withTimezone: true }).notNull().defaultNow(),
+    actorUserId: uuid('actor_user_id').references(() => users.id),
+    actorServiceAccountId: uuid('actor_service_account_id').references(() => serviceAccounts.id),
+  },
+  (t) => [
+    index('ticket_events_ticket_id_idx').on(t.ticketId, t.at),
+    check(
+      'ticket_events_status_change',
+      sql`${t.kind} <> 'status' or (${t.toStatus} is not null and ${t.fromStatus} is distinct from ${t.toStatus})`,
+    ),
+    check(
+      'ticket_events_assignee_change',
+      sql`${t.kind} <> 'assignee' or ${t.fromAssigneeId} is distinct from ${t.toAssigneeId}`,
+    ),
+    check(
+      'ticket_events_asset_named',
+      sql`(${t.kind} in ('asset_linked', 'asset_unlinked')) = (${t.assetId} is not null and ${t.assetNumber} is not null)`,
+    ),
+    oneActor('ticket_events_one_actor', t.actorUserId, t.actorServiceAccountId),
+  ],
+);
+
+/** Assets a ticket is about. Links come and go; ticket_events keeps the record of each. */
+export const ticketAssets = pgTable(
+  'ticket_assets',
+  {
+    ticketId: uuid('ticket_id')
+      .notNull()
+      .references(() => tickets.id),
+    assetId: uuid('asset_id')
+      .notNull()
+      .references(() => assets.id, { onDelete: 'cascade' }),
+    linkedAt: timestamp('linked_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.ticketId, t.assetId] }),
+    index('ticket_assets_asset_id_idx').on(t.assetId),
+  ],
+);
+
+/**
+ * When each staff member last opened a ticket. A ticket is unread for them when the requester
+ * has written since, which is what the list's dot shows.
+ */
+export const ticketReads = pgTable(
+  'ticket_reads',
+  {
+    ticketId: uuid('ticket_id')
+      .notNull()
+      .references(() => tickets.id),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id),
+    readAt: timestamp('read_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [primaryKey({ columns: [t.ticketId, t.userId] })],
 );
 
 export const auditLog = pgTable(

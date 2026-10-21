@@ -2,18 +2,19 @@ import { ASSET_STATUSES, assetStatusSchema, type AssetStatus } from '@open-itsm/
 import { useQuery } from '@tanstack/react-query';
 import { Link, createRoute, useNavigate } from '@tanstack/react-router';
 import { Plus, QrCode, Upload } from 'lucide-react';
-import { useEffect, useId, useState } from 'react';
+import { useId, useState } from 'react';
 import { z } from 'zod';
+import { FilterTabs } from '@/components/filter-tabs';
 import { LowStockNotice } from '@/components/low-stock';
 import { PageHeader } from '@/components/page-header';
+import { SearchField } from '@/components/search-field';
 import { Button, buttonClasses } from '@/components/ui/button';
 import { ErrorMessage } from '@/components/ui/card';
-import { Input, Label, Select } from '@/components/ui/input';
+import { Label, Select } from '@/components/ui/input';
 import { StatusBadge } from '@/components/ui/status-badge';
 import { Table, Td, Th } from '@/components/ui/table';
 import { assetStatusLabels, assetStatusTones, formatDate } from '@/lib/assets';
 import { assetsQuery, assetTypesQuery } from '@/lib/queries';
-import { cn } from '@/lib/utils';
 import { authedRoute } from './authed';
 
 const PAGE_SIZE = 25;
@@ -135,7 +136,12 @@ function AssetsPage() {
       />
 
       <div className="flex flex-wrap items-end gap-4">
-        <SearchField value={search.q ?? ''} onChange={(q) => setFilter({ q: q || undefined })} />
+        <SearchField
+          value={search.q ?? ''}
+          onChange={(q) => setFilter({ q: q || undefined })}
+          placeholder="Asset number, name or field value"
+          className="flex-[3_1_280px]"
+        />
         <TypeFilter
           value={search.typeId}
           types={types.data ?? []}
@@ -258,68 +264,16 @@ function StatusTabs({
   counts: Record<'all' | AssetStatus, number> | undefined;
   onChange: (status: AssetStatus | undefined) => void;
 }) {
-  const tabs: { status: AssetStatus | undefined; label: string; count?: number }[] = [
-    { status: undefined, label: 'All', count: counts?.all },
-    ...ASSET_STATUSES.map((s) => ({ status: s, label: assetStatusLabels[s], count: counts?.[s] })),
-  ];
   return (
-    <div
-      role="group"
-      aria-label="Filter by status"
-      className="flex flex-wrap gap-1 border-b border-line"
-    >
-      {tabs.map((tab) => {
-        const on = tab.status === current;
-        return (
-          <button
-            key={tab.label}
-            type="button"
-            aria-pressed={on}
-            onClick={() => onChange(tab.status)}
-            className={cn(
-              '-mb-px h-10 cursor-pointer border-0 border-b-2 border-transparent bg-transparent px-3 type-label text-ink',
-              'focus-visible:shadow-focus focus-visible:outline-2 focus-visible:outline-transparent',
-              on && 'border-pine font-semibold text-pine',
-            )}
-          >
-            {tab.label}{' '}
-            {tab.count !== undefined && (
-              <span className="font-normal text-ink-muted">{tab.count}</span>
-            )}
-          </button>
-        );
-      })}
-    </div>
-  );
-}
-
-/** Searches as you type, after a short pause, so each keystroke does not hit the server. */
-function SearchField({ value, onChange }: { value: string; onChange: (value: string) => void }) {
-  const id = useId();
-  const [text, setText] = useState(value);
-  // Follow the address when it changes from elsewhere, such as the back button.
-  const [seen, setSeen] = useState(value);
-  if (value !== seen) {
-    setSeen(value);
-    setText(value);
-  }
-  useEffect(() => {
-    if (text.trim() === value) return;
-    const timer = setTimeout(() => onChange(text.trim()), 300);
-    return () => clearTimeout(timer);
-  }, [text, value, onChange]);
-
-  return (
-    <div className="flex flex-[3_1_280px] flex-col gap-2">
-      <Label htmlFor={id}>Search</Label>
-      <Input
-        id={id}
-        type="search"
-        placeholder="Asset number, name or field value"
-        value={text}
-        onChange={(e) => setText(e.target.value)}
-      />
-    </div>
+    <FilterTabs
+      label="Filter by status"
+      current={current ?? 'all'}
+      onChange={(key) => onChange(key === 'all' ? undefined : key)}
+      tabs={[
+        { key: 'all' as const, label: 'All', count: counts?.all },
+        ...ASSET_STATUSES.map((s) => ({ key: s, label: assetStatusLabels[s], count: counts?.[s] })),
+      ]}
+    />
   );
 }
 

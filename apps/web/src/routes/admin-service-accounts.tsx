@@ -41,6 +41,8 @@ export const adminServiceAccountsRoute = createRoute({
 const scopeDescriptions: Record<(typeof ISSUABLE_SCOPES)[number], string> = {
   'assets:read': 'Read assets, asset types and fields',
   'assets:write': 'Create, change, import and delete assets, asset types and fields',
+  'tickets:read': 'Read tickets, their conversations and history',
+  'tickets:write': 'Open tickets, reply, add notes, and change status and assignee',
 };
 
 const DAY_MS = 24 * 3600 * 1000;

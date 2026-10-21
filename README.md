@@ -28,6 +28,12 @@ script arrive with the alpha release.
 - Consumables such as toner and cables: add stock, use it (optionally for an open repair) or
   record a count. Stock never goes below zero. An item is low at or below its threshold (0 never
   flags it), and low items show above the asset list and beside Consumables in the sidebar.
+- Tickets, numbered from #1: a list with queues (All open, Unassigned, Mine, Waiting on user,
+  Closed), search and filters, and a ticket page with the conversation, replies and internal
+  notes, status, assignee, linked assets, the requester and a history of every change. An
+  unread dot marks tickets the requester wrote on since you last opened them. Technicians open
+  tickets with New ticket until email arrives; replies are saved but not emailed until a
+  mailbox is connected.
 - Service accounts with scoped API tokens for scripts; see `docs/api.md`.
 
 ## Development

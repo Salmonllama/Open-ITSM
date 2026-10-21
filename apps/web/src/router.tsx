@@ -15,6 +15,8 @@ import { loginRoute } from './routes/login';
 import { rootRoute } from './routes/root';
 import { scanRoute, tagRoute } from './routes/scan';
 import { setupRoute } from './routes/setup';
+import { ticketViewRoute } from './routes/ticket-view';
+import { ticketsRoute } from './routes/tickets';
 
 export const queryClient = new QueryClient({
   defaultOptions: { queries: { retry: 1, refetchOnWindowFocus: false } },
@@ -25,6 +27,8 @@ const routeTree = rootRoute.addChildren([
   loginRoute,
   authedRoute.addChildren([
     indexRoute,
+    ticketsRoute,
+    ticketViewRoute,
     assetsRoute,
     assetNewRoute,
     assetImportRoute,

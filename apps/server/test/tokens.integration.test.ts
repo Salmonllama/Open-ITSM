@@ -68,12 +68,12 @@ describe.skipIf(!testDatabaseUrl)('API tokens and service accounts', () => {
     expect(created?.details).toMatchObject({ tokenId: apiToken.id, scopes: ['assets:read'] });
   });
 
-  it('refuses tokens longer than a year, ticket scopes and empty scopes', async () => {
+  it('refuses tokens longer than a year, unknown scopes and empty scopes', async () => {
     const admin = await signIn(app, 'root@example.com');
     const { accountId } = await issueToken(admin, ['assets:read']);
     for (const payload of [
       { scopes: ['assets:read'], expiresInDays: 366 },
-      { scopes: ['tickets:read'] },
+      { scopes: ['admin:all'] },
       { scopes: [] },
     ]) {
       const res = await admin.request({

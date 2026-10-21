@@ -36,3 +36,7 @@ export function isForeignKeyViolation(err: unknown): boolean {
 export const ADMIN_ONLY: RouteAccess = { roles: ['admin'] };
 export const ASSETS_READ: RouteAccess = { roles: STAFF_ROLES, scopes: ['assets:read'] };
 export const ASSETS_WRITE: RouteAccess = { roles: STAFF_ROLES, scopes: ['assets:write'] };
+/** Signed-in staff only; no token scope reaches these. */
+export const STAFF_ONLY: RouteAccess = { roles: STAFF_ROLES };
+export const TICKETS_READ: RouteAccess = { roles: STAFF_ROLES, scopes: ['tickets:read'] };
+export const TICKETS_WRITE: RouteAccess = { roles: STAFF_ROLES, scopes: ['tickets:write'] };

@@ -50,6 +50,20 @@
       "when": 1792540309462,
       "tag": "0006_consumables_rules",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1792542667923,
+      "tag": "0007_tickets",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1792542669057,
+      "tag": "0008_tickets_rules",
+      "breakpoints": true
     }
   ]
 }

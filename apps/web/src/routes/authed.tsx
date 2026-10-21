@@ -3,6 +3,7 @@ import { Link, Outlet, createRoute, redirect, useNavigate } from '@tanstack/reac
 import {
   Activity,
   BookOpen,
+  Inbox,
   KeyRound,
   Laptop,
   LogOut,
@@ -18,7 +19,13 @@ import { Logo } from '@/components/logo';
 import { ThemeSelect } from '@/components/theme-select';
 import { Button } from '@/components/ui/button';
 import { apiRequest } from '@/lib/api';
-import { lowStockQuery, sessionQuery, setupStatusQuery, storeSession } from '@/lib/queries';
+import {
+  lowStockQuery,
+  sessionQuery,
+  setupStatusQuery,
+  storeSession,
+  ticketCountsQuery,
+} from '@/lib/queries';
 import { roleLabels } from '@/lib/roles';
 import { cn } from '@/lib/utils';
 import { rootRoute } from './root';
@@ -51,6 +58,7 @@ function AuthedLayout() {
   });
 
   const lowStock = useQuery({ ...lowStockQuery, enabled: !!session });
+  const ticketCounts = useQuery({ ...ticketCountsQuery, enabled: !!session });
 
   if (!session) return null;
 
@@ -58,6 +66,17 @@ function AuthedLayout() {
     <>
       <NavLink to="/" icon={<Activity strokeWidth={1.75} />} onNavigate={onNavigate}>
         Status
+      </NavLink>
+      <NavLink
+        to="/tickets"
+        exact={false}
+        icon={<Inbox strokeWidth={1.75} />}
+        onNavigate={onNavigate}
+      >
+        <span className="flex-1">Tickets</span>
+        {ticketCounts.data && ticketCounts.data.open > 0 && (
+          <span className="type-caption text-ink-muted">{ticketCounts.data.open} open</span>
+        )}
       </NavLink>
       <NavLink
         to="/assets"
@@ -233,6 +252,7 @@ function NavLink({
 }: {
   to:
     | '/'
+    | '/tickets'
     | '/assets'
     | '/scan'
     | '/asset-types'

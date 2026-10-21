@@ -17,6 +17,10 @@ JSON is at `/api/docs/json`). Tokens cannot open the reference.
    - `assets:read` reads assets, asset types and fields.
    - `assets:write` creates, changes, imports and deletes them. It does not include
      `assets:read`; give a token both to read and change.
+   - `tickets:read` reads tickets, their conversations, linked assets and history, and the
+     requester and assignee lists.
+   - `tickets:write` opens tickets, replies, adds internal notes, changes status and assignee,
+     and links assets. Like the asset scopes, it does not include `tickets:read`.
 4. Copy the token when it is shown. It is shown once; if it is lost, revoke it and issue another.
 
 Tokens expire after 90 days by default and after one year at most. The Service accounts page
@@ -109,4 +113,29 @@ curl -fsS -H "Authorization: Bearer $OPEN_ITSM_TOKEN" -H 'Content-Type: applicat
 
 `GET /api/consumables/low-stock` lists every item at or below its threshold.
 
-Updating a ticket's status is added here when tickets arrive.
+## Update a ticket's status
+
+Find the ticket by its number, then change it. Statuses are `in_progress`, `waiting_on_user`,
+`resolved` and `closed` (New is only for tickets nobody has touched). Setting `assigneeId` to a
+staff member's ID (from `GET /api/tickets/assignees`), or to `null`, changes the assignee. The
+ticket's history names the service account as the one who made the change.
+
+```powershell
+$ticket = Invoke-RestMethod -Headers $headers -Uri 'https://itsm.example.com/api/tickets/by-number/42'
+Invoke-RestMethod -Method Patch -Headers $headers -ContentType 'application/json' `
+  -Body (@{ status = 'resolved' } | ConvertTo-Json) `
+  -Uri "https://itsm.example.com/api/tickets/$($ticket.id)"
+```
+
+```sh
+id=$(curl -fsS -H "Authorization: Bearer $OPEN_ITSM_TOKEN" \
+  https://itsm.example.com/api/tickets/by-number/42 | jq -r .id)
+curl -fsS -X PATCH -H "Authorization: Bearer $OPEN_ITSM_TOKEN" -H 'Content-Type: application/json' \
+  -d '{"status":"resolved"}' "https://itsm.example.com/api/tickets/$id"
+```
+
+`POST /api/tickets` opens a ticket (`subject`, `requester` with `email` and an optional `name`,
+`message`, and optional `assetIds`). `POST /api/tickets/<id>/messages` adds a `reply` or a
+`note` with a `body`; until a mailbox is connected (M7), replies are saved but not emailed.
+`GET /api/tickets` searches with `q`, `queue` (`open`, `unassigned`, `waiting`, `closed`),
+`status`, `assignee` and `source`.
