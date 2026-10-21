@@ -8,6 +8,13 @@ says so.
 - **Self-service password change.** In M1 only an administrator (Users page) or the host
   recovery CLI can set a password; a technician cannot change their own. A "change my password"
   form needs the current password and would revoke the user's other sessions.
+- **Directory provisioning.** Technicians are created by hand (M1), requesters appear as tickets
+  arrive (M6), and Entra ID sign-in (M9) only lets in people who already belong to the
+  technician group. Syncing people from a directory (Entra ID through Microsoft Graph or SCIM,
+  Google Workspace, or LDAP) would fill the requesters list ahead of the first email, keep
+  names and departments current, and disable or remove people who leave the organization,
+  which also matters once end users can sign in (M10). Matching would be by email, and the
+  directory would need to stay optional so local accounts keep working without it.
 
 ## Assets
 
