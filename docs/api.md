@@ -86,4 +86,27 @@ curl -fsS -H "Authorization: Bearer $OPEN_ITSM_TOKEN" -H 'Content-Type: applicat
 /api/assets/<asset id>/history` lists assignments, repairs and activity. A change the asset's
 state does not allow (for example assigning a retired asset) returns HTTP 409 with a message.
 
+## Change consumable stock
+
+Consumables use the asset scopes. `kind` is `add` or `use` with an `amount`, or `count` with the
+real `quantity` and a `reason`. A use can name an open repair with `repairId` (from `GET
+/api/repairs/open`). A use larger than the stock on hand returns HTTP 409, so stock never goes
+below zero.
+
+```powershell
+$item = (Invoke-RestMethod -Headers $headers `
+  -Uri "https://itsm.example.com/api/consumables?q=HP%2089A").items[0]
+Invoke-RestMethod -Method Post -Headers $headers -ContentType 'application/json' `
+  -Body (@{ kind = 'add'; amount = 10; reason = 'Order 4411' } | ConvertTo-Json) `
+  -Uri "https://itsm.example.com/api/consumables/$($item.id)/adjustments"
+```
+
+```sh
+curl -fsS -H "Authorization: Bearer $OPEN_ITSM_TOKEN" -H 'Content-Type: application/json' \
+  -d '{"kind":"count","quantity":7,"reason":"Stocktake"}' \
+  https://itsm.example.com/api/consumables/<consumable id>/adjustments
+```
+
+`GET /api/consumables/low-stock` lists every item at or below its threshold.
+
 Updating a ticket's status is added here when tickets arrive.

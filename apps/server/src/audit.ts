@@ -18,6 +18,7 @@ export type AuditAction =
   | 'token.failed'
   | 'token.request'
   | 'asset.deleted'
+  | 'consumable.deleted'
   | 'asset_type.deleted'
   | 'asset_type_field.deleted';
 

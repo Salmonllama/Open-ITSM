@@ -1,4 +1,4 @@
-import { useMutation, useQueryClient, useSuspenseQuery } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient, useSuspenseQuery } from '@tanstack/react-query';
 import { Link, Outlet, createRoute, redirect, useNavigate } from '@tanstack/react-router';
 import {
   Activity,
@@ -7,6 +7,7 @@ import {
   Laptop,
   LogOut,
   Menu,
+  Package,
   ScanLine,
   Shapes,
   Users,
@@ -17,7 +18,7 @@ import { Logo } from '@/components/logo';
 import { ThemeSelect } from '@/components/theme-select';
 import { Button } from '@/components/ui/button';
 import { apiRequest } from '@/lib/api';
-import { sessionQuery, setupStatusQuery, storeSession } from '@/lib/queries';
+import { lowStockQuery, sessionQuery, setupStatusQuery, storeSession } from '@/lib/queries';
 import { roleLabels } from '@/lib/roles';
 import { cn } from '@/lib/utils';
 import { rootRoute } from './root';
@@ -49,6 +50,8 @@ function AuthedLayout() {
     },
   });
 
+  const lowStock = useQuery({ ...lowStockQuery, enabled: !!session });
+
   if (!session) return null;
 
   const nav = (onNavigate?: () => void) => (
@@ -74,6 +77,17 @@ function AuthedLayout() {
         onNavigate={onNavigate}
       >
         Asset types
+      </NavLink>
+      <NavLink
+        to="/consumables"
+        exact={false}
+        icon={<Package strokeWidth={1.75} />}
+        onNavigate={onNavigate}
+      >
+        <span className="flex-1">Consumables</span>
+        {lowStock.data && lowStock.data.count > 0 && (
+          <span className="type-caption text-warning">{lowStock.data.count} low</span>
+        )}
       </NavLink>
       {session.user.role === 'admin' && (
         <>
@@ -217,7 +231,14 @@ function NavLink({
   onNavigate,
   children,
 }: {
-  to: '/' | '/assets' | '/scan' | '/asset-types' | '/admin/users' | '/admin/service-accounts';
+  to:
+    | '/'
+    | '/assets'
+    | '/scan'
+    | '/asset-types'
+    | '/consumables'
+    | '/admin/users'
+    | '/admin/service-accounts';
   exact?: boolean;
   icon: ReactNode;
   onNavigate?: () => void;

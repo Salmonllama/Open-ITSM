@@ -59,7 +59,7 @@ function fieldProblemsResponse(problems: FieldProblem[]) {
 }
 
 /** Escapes LIKE wildcards so a search for `50%` matches the text, not a pattern. */
-function likePattern(text: string): string {
+export function likePattern(text: string): string {
   return `%${text.replace(/[\\%_]/g, (c) => `\\${c}`)}%`;
 }
 

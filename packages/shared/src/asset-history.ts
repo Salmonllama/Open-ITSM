@@ -57,6 +57,8 @@ export const repairSchema = z.object({
   closedAt: z.iso.datetime().nullable(),
   openedBy: actorSchema.nullable(),
   closedBy: actorSchema.nullable(),
+  /** Consumables used for this repair, totalled per item. */
+  parts: z.array(z.object({ consumableId: z.uuid(), name: z.string(), quantity: z.int() })),
 });
 export type Repair = z.infer<typeof repairSchema>;
 

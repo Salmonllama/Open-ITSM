@@ -24,6 +24,7 @@ import { registerHealthRoute, type HealthCheck } from './health.js';
 import { registerAssetTypeRoutes } from './routes/asset-types.js';
 import { registerAssetRoutes } from './routes/assets.js';
 import { registerAuthRoutes } from './routes/auth.js';
+import { registerConsumableRoutes } from './routes/consumables.js';
 import { registerServiceAccountRoutes } from './routes/service-accounts.js';
 import { registerSetupRoutes } from './routes/setup.js';
 import { registerUserRoutes } from './routes/users.js';
@@ -112,6 +113,7 @@ export async function buildApp(options: AppOptions): Promise<FastifyInstance> {
   registerServiceAccountRoutes(app, deps);
   registerAssetTypeRoutes(app, deps);
   registerAssetRoutes(app, deps);
+  registerConsumableRoutes(app, deps);
 
   const webRoot = options.webRoot ? path.resolve(options.webRoot) : undefined;
   const serveWeb = webRoot !== undefined && existsSync(path.join(webRoot, 'index.html'));

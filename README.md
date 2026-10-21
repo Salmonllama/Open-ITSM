@@ -20,6 +20,16 @@ token from `docker compose logs app` to create the first administrator. If an ad
 lost, `docker compose exec app itsm reset-password <email>` sets a new one. Published images and an install
 script arrive with the alpha release.
 
+## What works so far
+
+- Asset types with custom fields, assets with unique numbers, search, filters and CSV import.
+- Assignment to a person or location, repairs and a full activity history for each asset.
+- QR asset tags for label printers and Avery sheets, and a scan page for phones and USB scanners.
+- Consumables such as toner and cables: add stock, use it (optionally for an open repair) or
+  record a count. Stock never goes below zero. An item is low at or below its threshold (0 never
+  flags it), and low items show above the asset list and beside Consumables in the sidebar.
+- Service accounts with scoped API tokens for scripts; see `docs/api.md`.
+
 ## Development
 
 See `CLAUDE.md` for commands, layout and conventions.

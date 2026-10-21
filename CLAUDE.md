@@ -15,6 +15,7 @@ voice, logo) and the page mockups that every screen must follow.
 | M2 Asset types, fields, assets, CSV import, service accounts, tokens    | Done (CI green on PR #3)                                |
 | M3 Status rules, assignment history, repairs, asset activity            | Done (CI green on PR #5)                                |
 | M4 QR tags, label printing, scan page with check in and out             | Done (CI green on PR #8)                                |
+| M5 Consumables, stock adjustments, repair link, low-stock notice        | Built; PR open, waiting on CI and review                |
 
 Update this table when a milestone is committed.
 
@@ -88,7 +89,8 @@ apps/server       Fastify API; also serves the built web UI from WEB_ROOT
                   http (cookie, bearer, CSRF, deny-by-default access check, token audit)
   src/assets/     fields.ts (field keys, value validation, CSV cells), numbers.ts (next numbers)
   src/routes/     setup, auth, users and service-accounts (admin only), asset-types, assets,
-                  asset-import, asset-history (assign, return, repairs, history, suggestions);
+                  asset-import, asset-history (assign, return, repairs, history, suggestions),
+                  consumables (stock, adjustments, low stock, open repairs);
                   deps.ts holds RouteDeps and the ADMIN_ONLY/ASSETS_* access presets
   src/audit.ts    append-only audit log writer (actor is a user or a service account)
   src/recovery.ts recovery commands; src/cli.ts is the `itsm` entrypoint in the image
@@ -100,19 +102,23 @@ apps/web          React + Vite + TanStack Router/Query + Tailwind v4
                   PageHeader, ConfirmDialog, FormDialog, Logo, AuthLayout, ThemeSelect
   src/routes/     setup, login, authed layout (sidebar shell; redirects to setup/login), index,
                   assets (list), asset-new, asset-view (view + edit), asset-import, asset-types
-                  (list + one type), admin-users, admin-service-accounts
+                  (list + one type), consumables (list + one item), admin-users,
+                  admin-service-accounts
   src/components/asset-form.tsx  number, name, status and the type's custom fields
   src/components/asset-history.tsx  asset page cards (assigned to, assignment history, repairs,
                   activity) and the assign/return/repair/status dialogs
+  src/components/consumable-dialogs.tsx  new/edit consumable and the add/use/count dialog
+  src/components/low-stock.tsx  Low stock badge and the notice above the asset list
   src/components/asset-tag.tsx  the printed tag (QR code drawn as an SVG path)
   src/components/qr-camera.tsx  camera preview that reads QR codes
   src/routes/asset-labels.tsx  print page (/assets/labels); scan.tsx is /scan and the tag
                   route /a/<number>
   src/lib/        api.ts (fetch wrapper, CSRF header, CSV import), queries.ts, assets.ts (status
                   tones, date and field formatting), theme.ts, roles.ts, scan.ts (tag URLs, reading
-                  scans), labels.ts (print layouts)
+                  scans), labels.ts (print layouts), consumables.ts (change labels, notice text)
   public/brand/   logo SVGs from the design system (lockup, reversed, mark, favicon, app icon)
-packages/shared   zod schemas and types shared by server and web (auth, assets, tokens)
+packages/shared   zod schemas and types shared by server and web (auth, assets, tokens,
+                  consumables)
 docs/api.md       operator notes for scripts: tokens, PowerShell and curl examples
 compose.yml       app + db + caddy; the file operators download (Caddyfile is inline)
 compose.build.yml override that builds the app image from the checkout
@@ -294,6 +300,21 @@ Dockerfile        multi-stage; runtime runs as `node`, files root-owned
   the design system's preview uses) and `jsqr` (reads QR codes in browsers without
   `BarcodeDetector`, which includes Safari and Firefox). Nothing in the project drew or read QR
   codes before.
+- **Consumables (M5, user's choice):** name (unique ignoring case), quantity and low-stock
+  threshold only. Stock changes through three actions: Add stock, Use and Count (sets the real
+  count and records the difference); each takes a reason, required for a count. Every change is a
+  row in `consumable_adjustments` (append only, with the actor), and a trigger applies it to
+  `consumables.quantity`, whose check keeps it at zero or more for any writer; a direct write to
+  the quantity is refused (`pg_trigger_depth`). The starting stock is the first row (`created`).
+  Uses are refused with 409 when they exceed the stock, under a row lock. Edits change only the
+  name and threshold. Deleting is allowed only until the stock has changed after creation.
+- **Repair link (M5, user's choice):** a Use can name an open repair (`GET /api/repairs/open`);
+  closed repairs are refused. The asset page's Repairs card lists the parts used per repair and
+  has Use parts on the open one, which asks which consumable.
+- **Low stock (M5, user's choice):** an item is low at or below its threshold; a threshold of 0
+  never flags it. Low items show a Low stock badge (warning tone), a notice above the asset list
+  naming up to three (`GET /api/consumables/low-stock`), and a count beside Consumables in the
+  sidebar. Consumables are under the asset scopes, as `docs/IMPLEMENTATION.md` says.
 - **CSV import:** comma-separated, UTF-8 (BOM allowed), header row names columns (`Number`,
   `Name`, `Status` and field labels or keys, any case). All-or-nothing in one transaction, at
   most 5,000 rows; every problem is reported with its line and column (HTTP 422); `dryRun=true`

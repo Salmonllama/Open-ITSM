@@ -4,6 +4,7 @@ import { Link, createRoute, useNavigate } from '@tanstack/react-router';
 import { Plus, QrCode, Upload } from 'lucide-react';
 import { useEffect, useId, useState } from 'react';
 import { z } from 'zod';
+import { LowStockNotice } from '@/components/low-stock';
 import { PageHeader } from '@/components/page-header';
 import { Button, buttonClasses } from '@/components/ui/button';
 import { ErrorMessage } from '@/components/ui/card';
@@ -124,6 +125,8 @@ function AssetsPage() {
           fields. <Link to="/asset-types">Add an asset type</Link> to get started.
         </p>
       )}
+
+      <LowStockNotice />
 
       <StatusTabs
         current={search.status}

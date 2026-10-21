@@ -12,7 +12,7 @@ import {
   type AssetHistory,
   type AssetStatus,
 } from '@open-itsm/shared';
-import { aliasedTable, and, desc, eq, ilike, isNull, ne, sql } from 'drizzle-orm';
+import { aliasedTable, and, asc, desc, eq, ilike, isNull, ne, sql, sum } from 'drizzle-orm';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import type { ZodTypeProvider } from 'fastify-type-provider-zod';
 import { z } from 'zod';
@@ -22,6 +22,8 @@ import {
   assetAssignments,
   assetEvents,
   assets,
+  consumableAdjustments,
+  consumables,
   repairs,
   serviceAccounts,
   users,
@@ -120,7 +122,7 @@ async function loadHistory(db: Db, assetId: string): Promise<AssetHistory> {
   const endUser = aliasedTable(users, 'end_user');
   const endSa = aliasedTable(serviceAccounts, 'end_sa');
 
-  const [assignmentRows, repairRows, eventRows] = await Promise.all([
+  const [assignmentRows, repairRows, eventRows, partRows] = await Promise.all([
     db
       .select({
         row: assetAssignments,
@@ -158,7 +160,28 @@ async function loadHistory(db: Db, assetId: string): Promise<AssetHistory> {
       .leftJoin(serviceAccounts, eq(serviceAccounts.id, assetEvents.actorServiceAccountId))
       .where(eq(assetEvents.assetId, assetId))
       .orderBy(desc(assetEvents.at), desc(assetEvents.id)),
+    db
+      .select({
+        repairId: repairs.id,
+        consumableId: consumables.id,
+        name: consumables.name,
+        used: sum(consumableAdjustments.change).mapWith(Number),
+      })
+      .from(consumableAdjustments)
+      .innerJoin(repairs, eq(repairs.id, consumableAdjustments.repairId))
+      .innerJoin(consumables, eq(consumables.id, consumableAdjustments.consumableId))
+      .where(eq(repairs.assetId, assetId))
+      .groupBy(repairs.id, consumables.id, consumables.name)
+      .orderBy(asc(sql`lower(${consumables.name})`)),
   ]);
+
+  const partsByRepair = new Map<string, AssetHistory['repairs'][number]['parts']>();
+  for (const part of partRows) {
+    const list = partsByRepair.get(part.repairId) ?? [];
+    // Uses are recorded as negative changes.
+    list.push({ consumableId: part.consumableId, name: part.name, quantity: -part.used });
+    partsByRepair.set(part.repairId, list);
+  }
 
   return {
     assignments: assignmentRows.map(({ row, ...names }) => ({
@@ -179,6 +202,7 @@ async function loadHistory(db: Db, assetId: string): Promise<AssetHistory> {
       closedAt: row.closedAt?.toISOString() ?? null,
       openedBy: actorName(names.startUser, names.startSa),
       closedBy: actorName(names.endUser, names.endSa),
+      parts: partsByRepair.get(row.id) ?? [],
     })),
     activity: eventRows.map(({ row, userName, saName }) => ({
       id: row.id,

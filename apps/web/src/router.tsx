@@ -9,6 +9,7 @@ import { assetTypeRoute, assetTypesRoute } from './routes/asset-types';
 import { assetEditRoute, assetViewRoute } from './routes/asset-view';
 import { assetsRoute } from './routes/assets';
 import { authedRoute } from './routes/authed';
+import { consumablesRoute, consumableViewRoute } from './routes/consumables';
 import { indexRoute } from './routes/index';
 import { loginRoute } from './routes/login';
 import { rootRoute } from './routes/root';
@@ -34,6 +35,8 @@ const routeTree = rootRoute.addChildren([
     tagRoute,
     assetTypesRoute,
     assetTypeRoute,
+    consumablesRoute,
+    consumableViewRoute,
     adminUsersRoute,
     adminServiceAccountsRoute,
   ]),
