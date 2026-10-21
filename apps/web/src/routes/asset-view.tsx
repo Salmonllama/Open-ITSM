@@ -175,7 +175,7 @@ function AssetPage() {
             )}
           </Card>
           <AssignmentHistoryCard history={history.data} />
-          <RepairsCard history={history.data} />
+          <RepairsCard asset={a} history={history.data} />
         </div>
         <aside className="flex min-w-0 flex-[1_1_300px] flex-col gap-6">
           <CurrentAssignmentCard history={history.data} />

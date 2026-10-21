@@ -36,6 +36,20 @@
       "when": 1792447988693,
       "tag": "0004_asset_history_rules",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1792540308312,
+      "tag": "0005_consumables",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1792540309462,
+      "tag": "0006_consumables_rules",
+      "breakpoints": true
     }
   ]
 }

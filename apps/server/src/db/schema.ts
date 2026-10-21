@@ -1,4 +1,10 @@
-import { ASSET_EVENT_KINDS, ASSET_STATUSES, FIELD_KINDS, TOKEN_SCOPES } from '@open-itsm/shared';
+import {
+  ASSET_EVENT_KINDS,
+  ASSET_STATUSES,
+  CONSUMABLE_ADJUSTMENT_KINDS,
+  FIELD_KINDS,
+  TOKEN_SCOPES,
+} from '@open-itsm/shared';
 import { sql } from 'drizzle-orm';
 import {
   bigserial,
@@ -19,6 +25,10 @@ export const userRole = pgEnum('user_role', ['admin', 'technician', 'end_user'])
 export const assetStatus = pgEnum('asset_status', ASSET_STATUSES);
 export const fieldKind = pgEnum('field_kind', FIELD_KINDS);
 export const assetEventKind = pgEnum('asset_event_kind', ASSET_EVENT_KINDS);
+export const consumableAdjustmentKind = pgEnum(
+  'consumable_adjustment_kind',
+  CONSUMABLE_ADJUSTMENT_KINDS,
+);
 
 export const users = pgTable(
   'users',
@@ -306,6 +316,68 @@ export const assetEvents = pgTable(
   (t) => [
     index('asset_events_asset_id_idx').on(t.assetId, t.at),
     oneActor('asset_events_one_actor', t.actorUserId, t.actorServiceAccountId),
+  ],
+);
+
+/**
+ * Parts and supplies counted by quantity. The quantity never goes below zero and changes only
+ * through `consumable_adjustments` (a trigger applies each adjustment), so it always matches its
+ * history.
+ */
+export const consumables = pgTable(
+  'consumables',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    name: text('name').notNull(),
+    quantity: integer('quantity').notNull().default(0),
+    lowStockThreshold: integer('low_stock_threshold').notNull().default(0),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex('consumables_name_key').on(sql`lower(${t.name})`),
+    check('consumables_name_not_blank', sql`btrim(${t.name}) <> ''`),
+    check('consumables_quantity_not_negative', sql`${t.quantity} >= 0`),
+    check('consumables_threshold_not_negative', sql`${t.lowStockThreshold} >= 0`),
+  ],
+);
+
+/**
+ * Every change to a consumable's quantity, with who made it and why. Append only, except that
+ * deleting a consumable (allowed only while it has nothing but its starting stock) removes its
+ * rows. `quantity_after` is set by the trigger that applies the change.
+ */
+export const consumableAdjustments = pgTable(
+  'consumable_adjustments',
+  {
+    id: bigserial('id', { mode: 'number' }).primaryKey(),
+    consumableId: uuid('consumable_id')
+      .notNull()
+      .references(() => consumables.id, { onDelete: 'cascade' }),
+    kind: consumableAdjustmentKind('kind').notNull(),
+    change: integer('change').notNull(),
+    quantityAfter: integer('quantity_after').notNull(),
+    reason: text('reason').notNull().default(''),
+    repairId: uuid('repair_id').references(() => repairs.id),
+    at: timestamp('at', { withTimezone: true }).notNull().defaultNow(),
+    actorUserId: uuid('actor_user_id').references(() => users.id),
+    actorServiceAccountId: uuid('actor_service_account_id').references(() => serviceAccounts.id),
+  },
+  (t) => [
+    index('consumable_adjustments_consumable_id_idx').on(t.consumableId, t.at),
+    index('consumable_adjustments_repair_id_idx')
+      .on(t.repairId)
+      .where(sql`${t.repairId} is not null`),
+    check('consumable_adjustments_quantity_after', sql`${t.quantityAfter} >= 0`),
+    check(
+      'consumable_adjustments_change_sign',
+      sql`(${t.kind} = 'added' and ${t.change} > 0) or (${t.kind} = 'used' and ${t.change} < 0) or ${t.kind} in ('created', 'counted')`,
+    ),
+    check(
+      'consumable_adjustments_repair_only_used',
+      sql`${t.repairId} is null or ${t.kind} = 'used'`,
+    ),
+    oneActor('consumable_adjustments_one_actor', t.actorUserId, t.actorServiceAccountId),
   ],
 );
 

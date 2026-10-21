@@ -8,13 +8,16 @@ import {
   type Repair,
 } from '@open-itsm/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { MapPin, User } from 'lucide-react';
+import { Link } from '@tanstack/react-router';
+import { MapPin, Package, User } from 'lucide-react';
 import { useId, useState } from 'react';
 import { apiRequest } from '@/lib/api';
 import { assetStatusLabels, formatDate } from '@/lib/assets';
 import { assetHistoryQuery, assetQuery, assignmentSuggestionsQuery } from '@/lib/queries';
+import { StockDialog } from './consumable-dialogs';
 import { FormField } from './form-field';
 import { FormDialog } from './form-dialog';
+import { Button } from './ui/button';
 import { Card } from './ui/card';
 import { Label, Select } from './ui/input';
 import { Table, Td, Th } from './ui/table';
@@ -362,7 +365,14 @@ export function AssignmentHistoryCard({ history }: { history: AssetHistory | und
   );
 }
 
-export function RepairsCard({ history }: { history: AssetHistory | undefined }) {
+export function RepairsCard({
+  asset,
+  history,
+}: {
+  asset: Asset;
+  history: AssetHistory | undefined;
+}) {
+  const [usingFor, setUsingFor] = useState<Repair>();
   return (
     <Card className="flex flex-col gap-4">
       <h2 className="m-0 type-heading">Repairs</h2>
@@ -386,8 +396,39 @@ export function RepairsCard({ history }: { history: AssetHistory | undefined }) 
             </span>
           </div>
           {r.notes && <span className="whitespace-pre-line">{r.notes}</span>}
+          {r.parts.length > 0 && (
+            <span className="type-caption text-ink-muted">
+              Parts used:{' '}
+              {r.parts.map((p, j) => (
+                <span key={p.consumableId}>
+                  {j > 0 && ', '}
+                  <Link to="/consumables/$consumableId" params={{ consumableId: p.consumableId }}>
+                    {p.name}
+                  </Link>{' '}
+                  × {p.quantity}
+                </span>
+              ))}
+            </span>
+          )}
+          {r.closedAt === null && (
+            <Button size="sm" className="mt-1 self-start" onClick={() => setUsingFor(r)}>
+              <Package aria-hidden="true" strokeWidth={1.75} />
+              Use parts
+            </Button>
+          )}
         </div>
       ))}
+      <StockDialog
+        action={usingFor ? 'use' : null}
+        repair={
+          usingFor && {
+            id: usingFor.id,
+            summary: usingFor.summary,
+            asset: { id: asset.id, number: asset.number, name: asset.name },
+          }
+        }
+        onClose={() => setUsingFor(undefined)}
+      />
     </Card>
   );
 }
