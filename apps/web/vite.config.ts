@@ -7,7 +7,7 @@ import { defineConfig } from 'vite';
 // Keep the browser's Host so the server's CSRF origin check sees the same site as Origin.
 // (The string shorthand would set changeOrigin: true and every write would be refused.)
 const apiProxy = {
-  target: process.env.API_URL ?? 'http://localhost:3000',
+  target: process.env.API_URL ?? 'http://localhost:3030',
   changeOrigin: false,
 };
 

@@ -10,7 +10,7 @@ const validEnv = {
 describe('loadConfig', () => {
   it('applies defaults to a minimal valid environment', () => {
     const config = loadConfig(validEnv);
-    expect(config.port).toBe(3000);
+    expect(config.port).toBe(3030);
     expect(config.appSecretKey).toHaveLength(32);
   });
 

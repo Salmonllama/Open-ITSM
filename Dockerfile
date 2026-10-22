@@ -27,7 +27,7 @@ FROM node:${NODE_VERSION}-alpine AS runtime
 ARG APP_VERSION=0.0.0-dev
 ENV NODE_ENV=production \
     HOST=0.0.0.0 \
-    PORT=3000 \
+    PORT=3030 \
     WEB_ROOT=/app/public \
     APP_VERSION=${APP_VERSION}
 
@@ -43,7 +43,7 @@ RUN mkdir -p /data/attachments /data/backups && chown -R node:node /data \
 
 USER node
 WORKDIR /app/apps/server
-EXPOSE 3000
+EXPOSE 3030
 HEALTHCHECK --interval=15s --timeout=5s --start-period=20s --retries=3 \
-  CMD ["node", "-e", "fetch('http://127.0.0.1:3000/healthz').then(r=>process.exit(r.ok?0:1),()=>process.exit(1))"]
+  CMD ["node", "-e", "fetch('http://127.0.0.1:3030/healthz').then(r=>process.exit(r.ok?0:1),()=>process.exit(1))"]
 CMD ["node", "dist/server.js"]

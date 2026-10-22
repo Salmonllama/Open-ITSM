@@ -45,7 +45,7 @@ Requires Node 24 LTS (`.nvmrc`) and pnpm via corepack (`corepack enable`).
 
 ```sh
 pnpm install                 # install all workspace packages
-pnpm dev                     # server (tsx watch, :3000) and web (vite, :5173, proxies /api and /healthz)
+pnpm dev                     # server (tsx watch, :3030) and web (vite, :5173, proxies /api and /healthz)
 pnpm build                   # shared -> server -> web, in dependency order
 pnpm lint                    # eslint
 pnpm format                  # prettier --write (format:check in CI)
