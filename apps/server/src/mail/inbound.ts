@@ -103,6 +103,8 @@ export type PollContext = {
   mailbox: string;
   /** Mail received before this is never turned into tickets. */
   connectedAt: Date;
+  /** Told about each ticket an email opened, once it is saved. */
+  onTicketCreated?: ((ticketId: string) => Promise<void>) | undefined;
 };
 
 /**
@@ -136,8 +138,10 @@ export async function pollInbox(ctx: PollContext, state: PollState): Promise<Pol
       if (item.receivedDateTime && new Date(item.receivedDateTime) < ctx.connectedAt) continue;
       try {
         const outcome = await importMessage(ctx, item.id);
-        if (outcome === 'created') result.created++;
-        else if (outcome === 'appended') result.appended++;
+        if (typeof outcome === 'object') {
+          result.created++;
+          await ctx.onTicketCreated?.(outcome.created);
+        } else if (outcome === 'appended') result.appended++;
         else result.skipped++;
         Reflect.deleteProperty(failures, item.id);
       } catch (err) {
@@ -161,7 +165,8 @@ export async function pollInbox(ctx: PollContext, state: PollState): Promise<Pol
   }
 }
 
-type Outcome = 'created' | 'appended' | 'skipped';
+/** A new ticket's ID, or what happened to an email that joined one or was passed over. */
+type Outcome = { created: string } | 'appended' | 'skipped';
 
 async function importMessage(ctx: PollContext, graphId: string): Promise<Outcome> {
   const { db, client, log } = ctx;
@@ -206,6 +211,7 @@ async function importMessage(ctx: PollContext, graphId: string): Promise<Outcome
     TICKET_BODY_MAX,
   );
 
+  let opened: string | undefined;
   try {
     await db.transaction(async (tx: Tx) => {
       let id = ticketId;
@@ -219,6 +225,7 @@ async function importMessage(ctx: PollContext, graphId: string): Promise<Outcome
           name,
           received,
         );
+        opened = id;
       }
       const [row] = await tx
         .insert(ticketMessages)
@@ -245,7 +252,7 @@ async function importMessage(ctx: PollContext, graphId: string): Promise<Outcome
     await Promise.all(files.map((f) => (f.storageKey ? ctx.store.remove(f.storageKey) : null)));
     throw err;
   }
-  return ticketId ? 'appended' : 'created';
+  return opened ? { created: opened } : 'appended';
 }
 
 /**

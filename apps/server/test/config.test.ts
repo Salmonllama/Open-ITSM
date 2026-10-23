@@ -12,6 +12,15 @@ describe('loadConfig', () => {
     const config = loadConfig(validEnv);
     expect(config.port).toBe(3030);
     expect(config.appSecretKey).toHaveLength(32);
+    expect(config.siteUrl).toBeNull();
+  });
+
+  it('builds the site address for message links from APP_HOSTNAME', () => {
+    expect(loadConfig({ ...validEnv, APP_HOSTNAME: 'itsm.example.com' }).siteUrl).toBe(
+      'https://itsm.example.com',
+    );
+    expect(loadConfig({ ...validEnv, APP_HOSTNAME: '' }).siteUrl).toBeNull();
+    expect(() => loadConfig({ ...validEnv, APP_HOSTNAME: 'https://x/y' })).toThrow(ConfigError);
   });
 
   it('reports every invalid variable without echoing secret values', () => {

@@ -9,6 +9,8 @@ services:
       DATABASE_URL: postgres://itsm:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}@db:5432/itsm
       APP_SECRET_KEY: ${APP_SECRET_KEY:?set APP_SECRET_KEY in .env}
       SESSION_SECRET: ${SESSION_SECRET:?set SESSION_SECRET in .env}
+      # Links in Slack and Teams messages point to https://<APP_HOSTNAME>.
+      APP_HOSTNAME: ${APP_HOSTNAME:?set APP_HOSTNAME in .env}
       LOG_LEVEL: ${LOG_LEVEL:-info}
     volumes:
       - attachments:/data/attachments
