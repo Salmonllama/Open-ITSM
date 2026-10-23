@@ -38,6 +38,11 @@ script arrive with the alpha release.
   the same ticket. Files travel both ways and are kept on the attachments volume. The page
   walks through the app registration and the Exchange commands that limit the app to that one
   mailbox, tests the connection, and warns 30 days before the client secret expires.
+- Slack and Teams notifications (Notifications, for administrators), off until a channel is
+  added: new tickets, assignments and low stock, chosen per channel, with the subject and an
+  Open button, never what was written. Low stock posts when an item first runs low or on every
+  use while low, as each channel chooses. Teams uses a Workflows webhook from the "Send webhook
+  alerts to a channel" template; links point to `https://APP_HOSTNAME`.
 - Service accounts with scoped API tokens for scripts; see `docs/api.md`.
 
 ## Development

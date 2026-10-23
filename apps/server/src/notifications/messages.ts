@@ -188,5 +188,7 @@ export function webhookHint(value: string): string {
   const url = new URL(value);
   // Teams URLs all end in /invoke; their signature is what differs.
   const tail = (url.searchParams.get('sig') ?? url.pathname.replace(/\/+$/, '')).slice(-4);
-  return `${url.hostname} …${tail}`;
+  // Teams hosts are long (default….environment.api.powerplatform.com); the end is enough.
+  const host = url.hostname.split('.').slice(-3).join('.');
+  return `${host} …${tail}`;
 }

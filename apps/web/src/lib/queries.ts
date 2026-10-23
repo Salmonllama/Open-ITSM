@@ -10,6 +10,7 @@ import {
   lowStockSummarySchema,
   mailSettingsSchema,
   mailStatusSchema,
+  notificationSettingsSchema,
   openRepairListSchema,
   requesterListSchema,
   serviceAccountSchema,
@@ -188,4 +189,10 @@ export const mailStatusQuery = queryOptions({
 export const mailSettingsQuery = queryOptions({
   queryKey: ['mail', 'settings'],
   queryFn: () => apiRequest('GET', '/api/settings/mail', { schema: mailSettingsSchema }),
+});
+
+export const notificationSettingsQuery = queryOptions({
+  queryKey: ['notifications'],
+  queryFn: () =>
+    apiRequest('GET', '/api/settings/notifications', { schema: notificationSettingsSchema }),
 });

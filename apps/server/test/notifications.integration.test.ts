@@ -131,12 +131,13 @@ describe.skipIf(!testDatabaseUrl)('Slack and Teams notifications', () => {
   });
 
   it('posts an Adaptive Card to Teams when a ticket is assigned', async () => {
-    await addChannel({
+    const teams = await addChannel({
       name: 'Teams desk',
       kind: 'teams',
       webhookUrl: TEAMS_URL,
       events: ['ticket_assigned'],
     });
+    expect(teams.webhookHint).toBe('api.powerplatform.com …alue');
     const ticket = await openTicket('VPN drops <!channel> [click](https://evil.test)');
     expect(hooks.posts).toHaveLength(0); // not subscribed to new tickets
 
