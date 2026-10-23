@@ -17,7 +17,7 @@ voice, logo) and the page mockups that every screen must follow.
 | M4 QR tags, label printing, scan page with check in and out             | Done (CI green on PR #8)                                |
 | M5 Consumables, stock adjustments, repair link, low-stock notice        | Done (CI green on PR #11)                               |
 | M6 Tickets, requesters, queues, ticket page, linked assets, scopes      | Done (CI green on PR #12)                               |
-| M7 Microsoft 365 mailbox, email intake, threading, replies, attachments | Built; PR open, waiting on CI and a real-tenant check   |
+| M7 Microsoft 365 mailbox, email intake, threading, replies, attachments | Done (CI green on PR #14; checked on a real tenant)     |
 
 Update this table when a milestone is committed.
 
