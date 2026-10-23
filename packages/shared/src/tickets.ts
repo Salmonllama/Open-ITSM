@@ -148,6 +148,21 @@ export const ticketListResponseSchema = z.object({
 });
 export type TicketListResponse = z.infer<typeof ticketListResponseSchema>;
 
+/** How a reply went out: not at all (no mailbox then), waiting to send, sent, or failed. */
+export const EMAIL_STATUSES = ['not_sent', 'queued', 'sent', 'failed'] as const;
+export const emailStatusSchema = z.enum(EMAIL_STATUSES);
+export type EmailStatus = z.infer<typeof emailStatusSchema>;
+
+export const ticketAttachmentSchema = z.object({
+  id: z.uuid(),
+  name: z.string(),
+  contentType: z.string(),
+  size: z.int(),
+  /** Why an emailed attachment was not kept (too large, a blocked file type); null if kept. */
+  skippedReason: z.string().nullable(),
+});
+export type TicketAttachment = z.infer<typeof ticketAttachmentSchema>;
+
 export const ticketMessageSchema = z.object({
   id: z.int(),
   kind: ticketMessageKindSchema,
@@ -159,6 +174,11 @@ export const ticketMessageSchema = z.object({
   from: senderSchema.nullable(),
   /** For a reply: when it was emailed, or null if it was not (no mailbox connected yet). */
   emailedAt: z.iso.datetime().nullable(),
+  /** For a reply: whether it went out by email. Null for requester messages and notes. */
+  emailStatus: emailStatusSchema.nullable(),
+  /** Why the last attempt to email a reply failed. */
+  emailError: z.string().nullable(),
+  attachments: z.array(ticketAttachmentSchema),
 });
 export type TicketMessage = z.infer<typeof ticketMessageSchema>;
 
@@ -213,12 +233,25 @@ export const updateTicketRequestSchema = z
   });
 export type UpdateTicketRequest = z.input<typeof updateTicketRequestSchema>;
 
-export const addTicketMessageRequestSchema = z.object({
-  kind: z.enum(['reply', 'note']),
-  body,
-  /** Set a status in the same step, as "Send and set Waiting on user" does. */
-  status: z.enum(SETTABLE_TICKET_STATUSES).optional(),
-});
+export const addTicketMessageRequestSchema = z
+  .object({
+    kind: z.enum(['reply', 'note']),
+    body: z
+      .string()
+      .trim()
+      .max(
+        TICKET_BODY_MAX,
+        `Keep the message to ${TICKET_BODY_MAX.toLocaleString('en')} characters`,
+      ),
+    /** Set a status in the same step, as "Send and set Waiting on user" does. */
+    status: z.enum(SETTABLE_TICKET_STATUSES).optional(),
+    /** Files uploaded to this ticket with `POST /api/tickets/:id/attachments`. */
+    attachmentIds: z.array(z.uuid()).max(20).default([]),
+  })
+  .refine((v) => v.body !== '' || v.attachmentIds.length > 0, {
+    message: 'Write a message or attach a file',
+    path: ['body'],
+  });
 export type AddTicketMessageRequest = z.input<typeof addTicketMessageRequestSchema>;
 
 export const linkTicketAssetRequestSchema = z.object({ assetId: z.uuid() });

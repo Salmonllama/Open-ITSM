@@ -14,6 +14,7 @@ import { Plus } from 'lucide-react';
 import { useId, useState, type ReactNode } from 'react';
 import { z } from 'zod';
 import { FilterTabs } from '@/components/filter-tabs';
+import { MailNotice } from '@/components/mail-notice';
 import { PageHeader } from '@/components/page-header';
 import { SearchField } from '@/components/search-field';
 import { NewTicketDialog } from '@/components/ticket-dialogs';
@@ -21,7 +22,8 @@ import { Button } from '@/components/ui/button';
 import { ErrorMessage } from '@/components/ui/card';
 import { Label, Select } from '@/components/ui/input';
 import { StatusBadge } from '@/components/ui/status-badge';
-import { sessionQuery, ticketAssigneesQuery, ticketsQuery } from '@/lib/queries';
+import { mailCaption } from '@/lib/mail';
+import { mailStatusQuery, sessionQuery, ticketAssigneesQuery, ticketsQuery } from '@/lib/queries';
 import {
   formatActivity,
   requesterLabel,
@@ -96,6 +98,7 @@ function TicketsPage() {
   }
 
   const data = list.data;
+  const mail = useQuery(mailStatusQuery);
   const filtered = !!(search.q || search.status || search.assignee || search.source);
   const first = data && data.total > 0 ? (page - 1) * PAGE_SIZE + 1 : 0;
   const last = data ? Math.min(page * PAGE_SIZE, data.total) : 0;
@@ -106,7 +109,7 @@ function TicketsPage() {
         title="Tickets"
         caption={
           data &&
-          `${data.counts.open} open · ${data.counts.unassigned} unassigned · no mailbox connected yet`
+          `${data.counts.open} open · ${data.counts.unassigned} unassigned${mail.data ? ` · ${mailCaption(mail.data)}` : ''}`
         }
         actions={
           <Button variant="primary" onClick={() => setCreating(true)}>
@@ -115,6 +118,7 @@ function TicketsPage() {
           </Button>
         }
       />
+      <MailNotice />
 
       <FilterTabs
         label="Queue"

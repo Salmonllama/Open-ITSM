@@ -16,7 +16,7 @@ describe.skipIf(!testDatabaseUrl)('database rules', () => {
     const { rows } = await t.pool.query(
       'select count(*)::int as n from drizzle.__drizzle_migrations',
     );
-    expect(rows[0].n).toBe(9);
+    expect(rows[0].n).toBe(11);
   });
 
   it('enforces unique, normalized emails and valid roles', async () => {

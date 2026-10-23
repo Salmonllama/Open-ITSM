@@ -2,13 +2,17 @@ import { STAFF_ROLES, type RouteAccess } from '../auth/http.js';
 import type { SessionStore } from '../auth/sessions.js';
 import type { SetupToken } from '../auth/setup-token.js';
 import type { TokenStore } from '../auth/tokens.js';
+import type { AttachmentStore } from '../attachments.js';
 import type { Db } from '../db/client.js';
+import type { MailService } from '../mail/service.js';
 
 export type RouteDeps = {
   db: Db;
   sessions: SessionStore;
   tokens: TokenStore;
   setupToken: SetupToken;
+  mail: MailService;
+  attachments: AttachmentStore;
 };
 
 /** Login and setup are rate limited per client IP, on top of per-account lockout. */

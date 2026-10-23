@@ -5,3 +5,4 @@ export * from './assets.js';
 export * from './asset-history.js';
 export * from './consumables.js';
 export * from './tickets.js';
+export * from './mail.js';

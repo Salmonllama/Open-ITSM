@@ -64,6 +64,20 @@
       "when": 1792542669057,
       "tag": "0008_tickets_rules",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1792554322499,
+      "tag": "0009_email",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1792554339916,
+      "tag": "0010_email_rules",
+      "breakpoints": true
     }
   ]
 }

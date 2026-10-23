@@ -225,6 +225,7 @@ describe.skipIf(!testDatabaseUrl)('tickets', () => {
       const ticket = await open('vpn');
       const { token } = await issueToken(admin, ['assets:read', 'assets:write']);
       const assetId = await newAsset();
+      const fileId = '00000000-0000-4000-8000-000000000000';
       const endpoints: [
         method: 'GET' | 'POST' | 'PATCH' | 'DELETE',
         url: string,
@@ -241,6 +242,10 @@ describe.skipIf(!testDatabaseUrl)('tickets', () => {
         ['POST', '/api/tickets', ticketFixtures.laptop],
         ['PATCH', `/api/tickets/${ticket.id}`, { status: 'closed' }],
         ['POST', `/api/tickets/${ticket.id}/messages`, { kind: 'note', body: 'x' }],
+        ['POST', `/api/tickets/${ticket.id}/messages/1/resend`],
+        ['POST', `/api/tickets/${ticket.id}/attachments?name=a.txt`, { a: 1 }],
+        ['GET', `/api/tickets/${ticket.id}/attachments/${fileId}`],
+        ['DELETE', `/api/tickets/${ticket.id}/attachments/${fileId}`],
       ];
 
       // Every ticket route in the API document is in the list above.
@@ -251,10 +256,12 @@ describe.skipIf(!testDatabaseUrl)('tickets', () => {
         .sort();
       const covered = endpoints
         .map(([method, url]) =>
-          `${method} ${url.replace(ticket.id, '{id}').replace(assetId, '{assetId}').replace(`/${ticket.number}`, '/{number}')}`.replace(
-            /\?.*/,
-            '',
-          ),
+          `${method} ${url
+            .replace(ticket.id, '{id}')
+            .replace(assetId, '{assetId}')
+            .replace(fileId, '{attachmentId}')
+            .replace('/messages/1/', '/messages/{messageId}/')
+            .replace(`/${ticket.number}`, '/{number}')}`.replace(/\?.*/, ''),
         )
         .sort();
       expect(covered).toEqual(documented);
@@ -413,7 +420,10 @@ describe.skipIf(!testDatabaseUrl)('tickets', () => {
     await expect(
       t.pool.query('delete from ticket_messages where ticket_id = $1', [id]),
     ).rejects.toThrow(/append only/);
-    await expect(t.pool.query('truncate ticket_messages')).rejects.toThrow(/append only/);
+    await expect(t.pool.query('truncate ticket_messages')).rejects.toThrow(
+      // Attachments now reference messages, so Postgres refuses before the trigger runs.
+      /append only|cannot truncate a table referenced/,
+    );
 
     // M7 records once when a reply was emailed; nothing else about a message changes.
     const sent =
@@ -425,7 +435,7 @@ describe.skipIf(!testDatabaseUrl)('tickets', () => {
         "update ticket_messages set emailed_at = now() where ticket_id = $1 and kind = 'inbound'",
         [id],
       ),
-    ).rejects.toThrow(/ticket_messages_only_replies_emailed/);
+    ).rejects.toThrow(/append only/);
   });
 
   it('tickets from the same email share one requester', async () => {

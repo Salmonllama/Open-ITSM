@@ -20,7 +20,10 @@ export type AuditAction =
   | 'asset.deleted'
   | 'consumable.deleted'
   | 'asset_type.deleted'
-  | 'asset_type_field.deleted';
+  | 'asset_type_field.deleted'
+  | 'settings.mail_updated'
+  | 'settings.mail_tested'
+  | 'settings.mail_disconnected';
 
 export type AuditEntry = {
   action: AuditAction;
