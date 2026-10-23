@@ -43,6 +43,10 @@ script arrive with the alpha release.
   Open button, never what was written. Low stock posts when an item first runs low or on every
   use while low, as each channel chooses. Teams uses a Workflows webhook from the "Send webhook
   alerts to a channel" template; links point to `https://APP_HOSTNAME`.
+  **Slack is untested:** it is built to Slack's incoming webhook docs and covered by automated
+  tests, but nobody has tried it against a real Slack workspace yet. If you can, add a channel,
+  press Send test message and open an issue with what happened. Contributors and testers are
+  welcome.
 - Service accounts with scoped API tokens for scripts; see `docs/api.md`.
 
 ## Development

@@ -427,6 +427,10 @@ Dockerfile        multi-stage; runtime runs as `node`, files root-owned
   The channel keeps its last success and last error (shown until a later message goes
   through); Send test message posts now. Queuing never fails the change that caused it.
   Channel changes, tests and removals are audited (`settings.channel_*`) without the URL.
+- **Slack is untested against a real workspace (Oct 2026):** the maintainer has no Slack access,
+  so Slack has only been checked by the automated tests against a stand-in. The README asks for
+  testers; remove that note once someone confirms a real post. Teams is being checked on a Microsoft
+  365 dev tenant.
 - **New dependencies in M8:** none; webhooks are posted with `fetch`.
 - **New dependencies in M7:** none. Graph is called with `fetch`; uploads use a raw body parser
   scoped to the upload route rather than `@fastify/multipart`.
