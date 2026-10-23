@@ -1,7 +1,10 @@
 import {
   ASSET_EVENT_KINDS,
   ASSET_STATUSES,
+  CHANNEL_KINDS,
   CONSUMABLE_ADJUSTMENT_KINDS,
+  LOW_STOCK_MODES,
+  NOTIFICATION_EVENTS,
   EMAIL_STATUSES,
   FIELD_KINDS,
   TICKET_EVENT_KINDS,
@@ -41,6 +44,9 @@ export const ticketSource = pgEnum('ticket_source', TICKET_SOURCES);
 export const ticketMessageKind = pgEnum('ticket_message_kind', TICKET_MESSAGE_KINDS);
 export const ticketEventKind = pgEnum('ticket_event_kind', TICKET_EVENT_KINDS);
 export const emailStatus = pgEnum('email_status', EMAIL_STATUSES);
+export const channelKind = pgEnum('channel_kind', CHANNEL_KINDS);
+export const notificationEvent = pgEnum('notification_event', NOTIFICATION_EVENTS);
+export const lowStockMode = pgEnum('low_stock_mode', LOW_STOCK_MODES);
 
 export const users = pgTable(
   'users',
@@ -633,4 +639,32 @@ export const auditLog = pgTable(
     index('audit_log_at_idx').on(t.at),
     oneActor('audit_log_one_actor', t.actorUserId, t.actorServiceAccountId),
   ],
+);
+
+/**
+ * Slack and Teams channels that are told about new tickets, assignments and low stock. The
+ * webhook URL is a credential: encrypted with APP_SECRET_KEY and never returned by the API.
+ */
+export const notificationChannels = pgTable(
+  'notification_channels',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    name: text('name').notNull(),
+    kind: channelKind('kind').notNull(),
+    webhookUrl: text('webhook_url').notNull(),
+    /** The URL's host and last characters, to tell channels apart without the secret. */
+    webhookHint: text('webhook_hint').notNull(),
+    events: notificationEvent('events')
+      .array()
+      .notNull()
+      .default(sql`'{}'`),
+    lowStockMode: lowStockMode('low_stock_mode').notNull().default('first'),
+    enabled: boolean('enabled').notNull().default(true),
+    lastSentAt: timestamp('last_sent_at', { withTimezone: true }),
+    lastError: text('last_error'),
+    lastErrorAt: timestamp('last_error_at', { withTimezone: true }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex('notification_channels_name_key').on(sql`lower(${t.name})`)],
 );

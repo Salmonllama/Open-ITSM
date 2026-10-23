@@ -17,7 +17,8 @@ voice, logo) and the page mockups that every screen must follow.
 | M4 QR tags, label printing, scan page with check in and out             | Done (CI green on PR #8)                                |
 | M5 Consumables, stock adjustments, repair link, low-stock notice        | Done (CI green on PR #11)                               |
 | M6 Tickets, requesters, queues, ticket page, linked assets, scopes      | Done (CI green on PR #12)                               |
-| M7 Microsoft 365 mailbox, email intake, threading, replies, attachments | Built; PR open, waiting on CI and a real-tenant check   |
+| M7 Microsoft 365 mailbox, email intake, threading, replies, attachments | Done (CI green on PR #14; checked on a real tenant)     |
+| M8 Slack and Teams notifications per channel                            | Built; PR open, waiting on CI                           |
 
 Update this table when a milestone is committed.
 
@@ -94,11 +95,14 @@ apps/server       Fastify API; also serves the built web UI from WEB_ROOT
                   asset-import, asset-history (assign, return, repairs, history, suggestions),
                   consumables (stock, adjustments, low stock, open repairs), tickets (list,
                   requesters, assignees, messages, status/assignee, linked assets, read marks,
-                  resend), ticket-attachments (upload, download, remove), mail (settings, status);
+                  resend), ticket-attachments (upload, download, remove), mail (settings, status),
+                  notifications (Slack and Teams channels, test message);
                   deps.ts holds RouteDeps and the ADMIN_ONLY/ASSETS_* access presets
   src/mail/       graph.ts (Graph client, sign-in, friendly errors), inbound.ts (delta poll,
                   threading, skips), outbound.ts (send a reply as email), headers.ts (pure
                   helpers), service.ts (settings, encrypted secret, status, test), jobs.ts (pg-boss)
+  src/notifications/  messages.ts (Slack and Teams payloads, posting, friendly errors),
+                  service.ts (channels, encrypted URLs, events, delivery), jobs.ts (pg-boss)
   src/crypto.ts   AES-256-GCM for stored credentials under APP_SECRET_KEY
   src/attachments.ts  files on the attachments volume (ATTACHMENTS_DIR), safe names, downloads
   src/audit.ts    append-only audit log writer (actor is a user or a service account)
@@ -115,7 +119,8 @@ apps/web          React + Vite + TanStack Router/Query + Tailwind v4
                   assets (list), asset-new, asset-view (view + edit), asset-import, asset-types
                   (list + one type), consumables (list + one item), tickets (list),
                   ticket-view (conversation, attachments, composer, side cards), admin-users,
-                  admin-service-accounts, admin-email (mailbox settings and setup steps)
+                  admin-service-accounts, admin-email (mailbox settings and setup steps),
+                  admin-notifications (Slack and Teams channels)
   src/components/asset-form.tsx  number, name, status and the type's custom fields
   src/components/asset-history.tsx  asset page cards (assigned to, assignment history, repairs,
                   activity) and the assign/return/repair/status dialogs
@@ -132,10 +137,11 @@ apps/web          React + Vite + TanStack Router/Query + Tailwind v4
                   tones, date and field formatting), theme.ts, roles.ts, scan.ts (tag URLs, reading
                   scans), labels.ts (print layouts), consumables.ts (change labels, notice text),
                   tickets.ts (status tones, source labels, times, history lines), mail.ts
-                  (mailbox state words, reply email status, file sizes)
+                  (mailbox state words, reply email status, file sizes), notifications.ts
+                  (channel state and event words)
   public/brand/   logo SVGs from the design system (lockup, reversed, mark, favicon, app icon)
 packages/shared   zod schemas and types shared by server and web (auth, assets, tokens,
-                  consumables, tickets)
+                  consumables, tickets, mail, notifications)
 docs/api.md       operator notes for scripts: tokens, PowerShell and curl examples
 compose.yml       app + db + caddy; the file operators download (Caddyfile is inline)
 compose.build.yml override that builds the app image from the checkout
@@ -400,6 +406,32 @@ Dockerfile        multi-stage; runtime runs as `node`, files root-owned
   reason. Composer uploads are raw bodies (`POST /api/tickets/:id/attachments?name=`), wait
   unattached, and join one message once (trigger). Downloads are always `attachment` with
   nosniff and `CSP: sandbox`. Notes can carry files; they are never emailed.
+- **Slack and Teams (M8, user's choice: several channels, low-stock rule per channel):**
+  admins add channels on Notifications (`/admin/notifications`, ADMIN_ONLY, no token scope).
+  Each has a name (unique ignoring case), a kind (Slack or Teams, never changes), a webhook URL
+  (AES-256-GCM under APP_SECRET_KEY, bound to the channel ID; never returned or logged, shown as
+  host and last four characters), its events (new ticket, ticket assigned, low stock), its
+  low-stock rule (`first`: when a drop takes an item from above its threshold to at or below;
+  `every`: each drop that leaves it at or below; a threshold of 0 never posts; rises and edits
+  never post) and an on/off switch. Nothing is sent until a channel exists. Slack takes only
+  `https://hooks.slack.com/services/...` (or slack-gov); Teams takes only Workflows URLs on
+  `*.powerplatform.com`/`.us` (the "Send webhook alerts to a channel" template), and the
+  retired connector (`webhook.office.com`) and old Logic Apps (`logic.azure.com`) URLs are
+  refused with what to do instead; checked against Microsoft's docs in Oct 2026 (connectors
+  retired May 2026, Workflows URLs moved to powerplatform.com late 2025). Messages carry the
+  number, subject, a one-line detail (source, assignee, stock left) and an Open button to
+  `https://<APP_HOSTNAME>` (user's choice; passed to the app in compose, links left out when
+  unset); never the body. Slack text escapes `& < >`; Teams uses Adaptive Card 1.4 TextRuns,
+  which are not read as markdown. Each message is a `notify-send` job (5 retries with backoff,
+  10 s timeout, no redirects); 429, 5xx and network errors retry, other errors stop at once.
+  The channel keeps its last success and last error (shown until a later message goes
+  through); Send test message posts now. Queuing never fails the change that caused it.
+  Channel changes, tests and removals are audited (`settings.channel_*`) without the URL.
+- **Slack is untested against a real workspace (Oct 2026):** the maintainer has no Slack access,
+  so Slack has only been checked by the automated tests against a stand-in. The README asks for
+  testers; remove that note once someone confirms a real post. Teams is being checked on a Microsoft
+  365 dev tenant.
+- **New dependencies in M8:** none; webhooks are posted with `fetch`.
 - **New dependencies in M7:** none. Graph is called with `fetch`; uploads use a raw body parser
   scoped to the upload route rather than `@fastify/multipart`.
 - **CSV import:** comma-separated, UTF-8 (BOM allowed), header row names columns (`Number`,

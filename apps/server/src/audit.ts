@@ -23,7 +23,11 @@ export type AuditAction =
   | 'asset_type_field.deleted'
   | 'settings.mail_updated'
   | 'settings.mail_tested'
-  | 'settings.mail_disconnected';
+  | 'settings.mail_disconnected'
+  | 'settings.channel_created'
+  | 'settings.channel_updated'
+  | 'settings.channel_tested'
+  | 'settings.channel_deleted';
 
 export type AuditEntry = {
   action: AuditAction;

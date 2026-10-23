@@ -5,6 +5,7 @@ import type { TokenStore } from '../auth/tokens.js';
 import type { AttachmentStore } from '../attachments.js';
 import type { Db } from '../db/client.js';
 import type { MailService } from '../mail/service.js';
+import type { NotificationService } from '../notifications/service.js';
 
 export type RouteDeps = {
   db: Db;
@@ -12,6 +13,7 @@ export type RouteDeps = {
   tokens: TokenStore;
   setupToken: SetupToken;
   mail: MailService;
+  notifications: NotificationService;
   attachments: AttachmentStore;
 };
 

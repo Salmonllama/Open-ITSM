@@ -10,6 +10,7 @@ import { SESSION_COOKIE } from '../../src/auth/http.js';
 import { SetupToken } from '../../src/auth/setup-token.js';
 import { createDb, createPool, type Db } from '../../src/db/client.js';
 import { MailService, type MailOptions } from '../../src/mail/service.js';
+import { NotificationService, type NotificationOptions } from '../../src/notifications/service.js';
 
 export const TEST_SESSION_SECRET = 'test-session-secret-at-least-32-characters';
 export const TEST_SETUP_TOKEN = 'test-setup-token';
@@ -43,6 +44,22 @@ export function makeMail(db: Db, options: Partial<MailOptions> = {}) {
   return { mail, store };
 }
 
+export const TEST_SITE_URL = 'https://itsm.test';
+
+/** Slack and Teams channels posting through `fetch` (a stand-in); messages go out inline. */
+export function makeNotifications(db: Db, options: Partial<NotificationOptions> = {}) {
+  return new NotificationService(
+    db,
+    {
+      secretKey: randomBytes(32),
+      siteUrl: TEST_SITE_URL,
+      fetch: () => Promise.reject(new Error('no Slack or Teams stand-in in this test')),
+      ...options,
+    },
+    pino({ level: 'silent' }),
+  );
+}
+
 export async function makeApp(overrides: Partial<AppOptions> = {}) {
   const db = overrides.db ?? unusedDb();
   const { mail, store } = makeMail(db);
@@ -52,6 +69,7 @@ export async function makeApp(overrides: Partial<AppOptions> = {}) {
     checks: { database: ok, queue: ok },
     db,
     mail,
+    notifications: makeNotifications(db),
     attachments: store,
     sessionSecret: TEST_SESSION_SECRET,
     setupToken: new SetupToken(TEST_SETUP_TOKEN),
