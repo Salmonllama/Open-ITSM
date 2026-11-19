@@ -4,6 +4,7 @@ import {
   Activity,
   Bell,
   BookOpen,
+  HardDriveDownload,
   Inbox,
   KeyRound,
   Laptop,
@@ -13,6 +14,8 @@ import {
   Package,
   ScanLine,
   Shapes,
+  ShieldCheck,
+  UserCheck,
   Users,
   X,
 } from 'lucide-react';
@@ -34,7 +37,7 @@ import { roleLabels } from '@/lib/roles';
 import { cn } from '@/lib/utils';
 import { rootRoute } from './root';
 
-/** Layout for every signed-in page; sends visitors to setup or login first. */
+/** Layout for every signed-in staff page; sends visitors to setup, login or the end-user portal. */
 export const authedRoute = createRoute({
   getParentRoute: () => rootRoute,
   id: 'authed',
@@ -42,7 +45,9 @@ export const authedRoute = createRoute({
     const setup = await context.queryClient.ensureQueryData(setupStatusQuery);
     if (setup.required) throw redirect({ to: '/setup' });
     const session = await context.queryClient.ensureQueryData(sessionQuery);
-    if (!session) throw redirect({ to: '/login', search: { redirect: location.href } });
+    if (!session)
+      throw redirect({ to: '/login', search: { redirect: location.href, ssoError: undefined } });
+    if (session.user.role === 'end_user') throw redirect({ to: '/portal' });
     return { session };
   },
   component: AuthedLayout,
@@ -57,7 +62,7 @@ function AuthedLayout() {
     onSettled: async () => {
       storeSession(queryClient, null);
       queryClient.removeQueries({ predicate: (q) => q.queryKey[0] !== 'session' });
-      await navigate({ to: '/login', search: { redirect: undefined } });
+      await navigate({ to: '/login', search: { redirect: undefined, ssoError: undefined } });
     },
   });
 
@@ -144,6 +149,27 @@ function AuthedLayout() {
             onNavigate={onNavigate}
           >
             Notifications
+          </NavLink>
+          <NavLink
+            to="/admin/sso"
+            icon={<ShieldCheck strokeWidth={1.75} />}
+            onNavigate={onNavigate}
+          >
+            Single sign-on
+          </NavLink>
+          <NavLink
+            to="/admin/portal"
+            icon={<UserCheck strokeWidth={1.75} />}
+            onNavigate={onNavigate}
+          >
+            End-user portal
+          </NavLink>
+          <NavLink
+            to="/admin/backups"
+            icon={<HardDriveDownload strokeWidth={1.75} />}
+            onNavigate={onNavigate}
+          >
+            Backups
           </NavLink>
         </>
       )}
@@ -285,7 +311,10 @@ function NavLink({
     | '/admin/users'
     | '/admin/service-accounts'
     | '/admin/email'
-    | '/admin/notifications';
+    | '/admin/notifications'
+    | '/admin/sso'
+    | '/admin/portal'
+    | '/admin/backups';
   exact?: boolean;
   icon: ReactNode;
   onNavigate?: () => void;

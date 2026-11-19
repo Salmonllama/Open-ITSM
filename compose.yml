@@ -9,8 +9,9 @@ services:
       DATABASE_URL: postgres://itsm:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}@db:5432/itsm
       APP_SECRET_KEY: ${APP_SECRET_KEY:?set APP_SECRET_KEY in .env}
       SESSION_SECRET: ${SESSION_SECRET:?set SESSION_SECRET in .env}
-      # Links in Slack and Teams messages point to https://<APP_HOSTNAME>.
+      # Links in Slack and Teams messages, Entra ID callbacks and portal emails use https://<APP_HOSTNAME>.
       APP_HOSTNAME: ${APP_HOSTNAME:?set APP_HOSTNAME in .env}
+      BACKUP_RETENTION_DAYS: ${BACKUP_RETENTION_DAYS:-14}
       LOG_LEVEL: ${LOG_LEVEL:-info}
     volumes:
       - attachments:/data/attachments
@@ -49,12 +50,14 @@ services:
     environment:
       APP_HOSTNAME: ${APP_HOSTNAME:?set APP_HOSTNAME in .env}
       CADDY_GLOBAL_OPTIONS: ${CADDY_GLOBAL_OPTIONS:-}
+      CADDY_TLS: ${CADDY_TLS:-}
     configs:
       - source: caddyfile
         target: /etc/caddy/Caddyfile
     volumes:
       - caddy_data:/data
       - caddy_config:/config
+      - ./certs:/certs:ro
     networks:
       - frontend
     depends_on:
@@ -71,6 +74,7 @@ configs:
       }
 
       {$$APP_HOSTNAME} {
+      	{$$CADDY_TLS}
       	encode zstd gzip
         reverse_proxy app:3030 {
           header_up X-Forwarded-For {remote_ip}

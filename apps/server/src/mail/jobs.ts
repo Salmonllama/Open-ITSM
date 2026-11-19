@@ -2,6 +2,7 @@ import type { PgBoss } from 'pg-boss';
 import type { Logger } from 'pino';
 import type { AttachmentStore } from '../attachments.js';
 import type { Db } from '../db/client.js';
+import type { PortalService } from '../portal/service.js';
 import { removeAbandonedUploads } from '../routes/ticket-attachments.js';
 import { queuedReplies } from './outbound.js';
 import type { MailService } from './service.js';
@@ -21,9 +22,15 @@ const SEND_RETRIES = 6;
  */
 export async function startMailJobs(
   boss: PgBoss,
-  deps: { db: Db; mail: MailService; store: AttachmentStore; log: Logger },
+  deps: {
+    db: Db;
+    mail: MailService;
+    store: AttachmentStore;
+    portal?: PortalService;
+    log: Logger;
+  },
 ): Promise<void> {
-  const { db, mail, store, log } = deps;
+  const { db, mail, store, portal, log } = deps;
   // One check at a time, and never a backlog of them.
   await boss.createQueue(POLL, { policy: 'exclusive', retryLimit: 0, expireInSeconds: 600 });
   // One job per reply at a time; retried for about an hour before it is marked failed.
@@ -55,6 +62,7 @@ export async function startMailJobs(
   });
   await boss.work(HOUSEKEEPING, async () => {
     await removeAbandonedUploads(db, store, log);
+    if (portal) await portal.cleanupExpiredLinks();
     if (await mail.canSend()) {
       for (const id of await queuedReplies(db, new Date(Date.now() - LOST_AFTER_MS))) {
         await mail.queue.send(id);

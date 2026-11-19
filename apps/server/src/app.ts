@@ -16,22 +16,28 @@ import {
   validatorCompiler,
 } from 'fastify-type-provider-zod';
 import type { AttachmentStore } from './attachments.js';
+import type { EntraService } from './auth/entra.js';
 import { registerAuth, STAFF_ROLES, type TokenLimits } from './auth/http.js';
 import { SessionStore } from './auth/sessions.js';
 import { TokenStore } from './auth/tokens.js';
 import type { SetupToken } from './auth/setup-token.js';
+import type { BackupService } from './backups/service.js';
 import type { Db } from './db/client.js';
 import { registerHealthRoute, type HealthCheck } from './health.js';
 import type { MailService } from './mail/service.js';
 import type { NotificationService } from './notifications/service.js';
+import type { PortalService } from './portal/service.js';
 import { registerAssetTypeRoutes } from './routes/asset-types.js';
 import { registerAssetRoutes } from './routes/assets.js';
 import { registerAuthRoutes } from './routes/auth.js';
+import { registerBackupRoutes } from './routes/backups.js';
 import { registerConsumableRoutes } from './routes/consumables.js';
 import { registerMailRoutes } from './routes/mail.js';
 import { registerNotificationRoutes } from './routes/notifications.js';
+import { registerPortalRoutes } from './routes/portal.js';
 import { registerServiceAccountRoutes } from './routes/service-accounts.js';
 import { registerSetupRoutes } from './routes/setup.js';
+import { registerSsoRoutes } from './routes/sso.js';
 import { registerTicketAttachmentRoutes } from './routes/ticket-attachments.js';
 import { registerTicketRoutes } from './routes/tickets.js';
 import { registerUserRoutes } from './routes/users.js';
@@ -43,6 +49,12 @@ export type AppOptions = {
   db: Db;
   sessionSecret: string;
   setupToken: SetupToken;
+  /** Optional Microsoft Entra ID single sign-on. */
+  entra: EntraService;
+  /** Optional end-user portal and one-time email sign-in links. */
+  portal: PortalService;
+  /** Database and attachments backup archive service. */
+  backups: BackupService;
   /** The Microsoft 365 mailbox: settings, checking the inbox and sending replies. */
   mail: MailService;
   /** Slack and Teams channels and the messages they are sent. */
@@ -123,12 +135,18 @@ export async function buildApp(options: AppOptions): Promise<FastifyInstance> {
     sessions,
     tokens,
     setupToken: options.setupToken,
+    entra: options.entra,
+    portal: options.portal,
+    backups: options.backups,
     mail: options.mail,
     notifications: options.notifications,
     attachments: options.attachments,
   };
   registerSetupRoutes(app, deps);
   registerAuthRoutes(app, deps);
+  registerSsoRoutes(app, deps);
+  registerPortalRoutes(app, deps);
+  registerBackupRoutes(app, deps);
   registerUserRoutes(app, deps);
   registerServiceAccountRoutes(app, deps);
   registerAssetTypeRoutes(app, deps);

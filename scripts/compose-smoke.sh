@@ -19,13 +19,16 @@ cleanup() {
 }
 trap cleanup EXIT
 
+mkdir -p certs
 cat >"$env_file" <<ENV
 OPEN_ITSM_VERSION=smoke
 APP_HOSTNAME=localhost
 CADDY_GLOBAL_OPTIONS=
+CADDY_TLS=
 POSTGRES_PASSWORD=$(openssl rand -hex 24)
 APP_SECRET_KEY=$(openssl rand -base64 32)
 SESSION_SECRET=$(openssl rand -base64 48)
+BACKUP_RETENTION_DAYS=14
 LOG_LEVEL=info
 ENV
 

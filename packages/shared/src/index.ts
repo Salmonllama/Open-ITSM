@@ -7,3 +7,6 @@ export * from './consumables.js';
 export * from './tickets.js';
 export * from './mail.js';
 export * from './notifications.js';
+export * from './sso.js';
+export * from './portal.js';
+export * from './backups.js';

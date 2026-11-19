@@ -3,56 +3,71 @@
 A free, open-source, self-hosted ITSM for internal IT teams of 1 to 10 technicians: asset
 management with QR labels and email-based support ticketing through Microsoft 365.
 
-**Status:** pre-alpha, under active development. See `docs/IMPLEMENTATION.md` for the plan.
+## Quick install
 
-## Try it
-
-Requires Docker Engine with Compose v2.
+Requires a Linux host or VM with Docker Engine and Compose v2, about 2 GB RAM, and ports 80 and 443.
 
 ```sh
-cp .env.example .env    # then replace every change-me value
+curl -fsSL https://raw.githubusercontent.com/Salmonllama/Open-ITSM/main/scripts/install.sh | bash
+```
+
+For manual installation, Windows evaluation (`scripts/install.ps1`), custom TLS certificates,
+upgrades, backups, restore and admin recovery, see **[`docs/OPERATIONS.md`](docs/OPERATIONS.md)**.
+
+To try from a source checkout on `https://localhost`:
+
+```sh
+cp .env.example .env    # then replace every change-me value and set APP_HOSTNAME=localhost
 docker compose -f compose.yml -f compose.build.yml up -d --build
 curl -k https://localhost/healthz
 ```
 
-Set `APP_HOSTNAME=localhost` in `.env` for a local trial. Open the site and enter the setup
-token from `docker compose logs app` to create the first administrator. If an admin password is
-lost, `docker compose exec app itsm reset-password <email>` sets a new one. Published images and an install
-script arrive with the alpha release.
+Open the site and enter the one-time setup token printed by `docker compose logs app` to create the
+first local administrator.
 
-## What works so far
+## Features (v1)
 
-- Asset types with custom fields, assets with unique numbers, search, filters and CSV import.
-- Assignment to a person or location, repairs and a full activity history for each asset.
-- QR asset tags for label printers and Avery sheets, and a scan page for phones and USB scanners.
-- Consumables such as toner and cables: add stock, use it (optionally for an open repair) or
-  record a count. Stock never goes below zero. An item is low at or below its threshold (0 never
-  flags it), and low items show above the asset list and beside Consumables in the sidebar.
-- Tickets, numbered from #1: a list with queues (All open, Unassigned, Mine, Waiting on user,
-  Closed), search and filters, and a ticket page with the conversation, replies and internal
-  notes, status, assignee, linked assets, the requester and a history of every change. An
-  unread dot marks tickets the requester wrote on since you last opened them. Technicians can
-  also open tickets with New ticket.
-- Email through one Microsoft 365 shared mailbox (Email, for administrators): email to it opens a
-  ticket, replies are emailed with `[#N]` in the subject, and the requester's answers land on
-  the same ticket. Files travel both ways and are kept on the attachments volume. The page
-  walks through the app registration and the Exchange commands that limit the app to that one
-  mailbox, tests the connection, and warns 30 days before the client secret expires.
-- Slack and Teams notifications (Notifications, for administrators), off until a channel is
-  added: new tickets, assignments and low stock, chosen per channel, with the subject and an
-  Open button, never what was written. Low stock posts when an item first runs low or on every
-  use while low, as each channel chooses. Teams uses a Workflows webhook from the "Send webhook
-  alerts to a channel" template; links point to `https://APP_HOSTNAME`.
-  **Slack is untested:** it is built to Slack's incoming webhook docs and covered by automated
-  tests, but nobody has tried it against a real Slack workspace yet. If you can, add a channel,
-  press Send test message and open an issue with what happened. Contributors and testers are
-  welcome.
-- Service accounts with scoped API tokens for scripts; see `docs/api.md`.
+- **Asset management:** custom asset types with custom fields, unique asset numbers, search,
+  filters and all-or-nothing CSV import with full conflict reporting.
+- **Lifecycle and history:** deployment assignment history, repair log (opening a repair moves the
+  asset to In repair; closing restores its previous status), and full append-only activity feed.
+- **QR labels and scanning:** printable QR asset tags for label printers and Avery sheets (5160 /
+  L7160), plus a `/scan` page supporting device cameras and USB keyboard-mode scanners for lookup,
+  check-out and check-in.
+- **Consumables:** quantity tracking with add/use/count adjustments, optional repair links, a
+  non-negative stock floor enforced in PostgreSQL, and low-stock indicators.
+- **Ticketing:** tickets numbered from `#1`, queues (`All open`, `Unassigned`, `Mine`,
+  `Waiting on user`, `Closed`), replies, internal notes, unread dots, linked assets and full event
+  history.
+- **Microsoft 365 shared mailbox (`/admin/email`):** app-only Microsoft Graph intake scoped to one
+  shared mailbox, automatic threading (`[#N]`, reply headers, conversation ID), outbound email
+  replies, attachments stored on disk, and 30-day secret expiry warnings.
+- **Slack and Microsoft Teams notifications (`/admin/notifications`):** optional per-channel
+  outbound alerts for new tickets, assignments and low stock (subject and link only, never message
+  bodies).
+  _Note: Slack webhooks are covered by automated tests against a stand-in, but have not yet been
+  verified against a live Slack workspace. Feedback from Slack testers is welcome._
+- **Optional Microsoft Entra ID SSO (`/admin/sso`):** OpenID Connect with PKCE and technician group
+  access (with Microsoft Graph group-overage fallback). Local accounts always remain available, and
+  `docker compose exec app itsm disable-sso` can switch SSO off from the host at any time.
+- **Optional end-user portal (`/admin/portal`):** off by default. Lets requesters sign in via Entra
+  ID or an emailed 15-minute one-time link to view and reply to their own open tickets on desktop or
+  phone, strictly isolated in SQL with internal notes excluded.
+- **Backups and restore (`/admin/backups`):** automatic pre-migration backup on upgrade, nightly
+  scheduled backups (`pg_dump` + attachments, 14-day retention), manual **Backup now** and archive
+  downloads, plus `scripts/restore.sh`.
+- **Internal scripting API (`docs/api.md`):** named service accounts with scoped, expiring bearer
+  tokens (`assets:read`, `assets:write`, `tickets:read`, `tickets:write`) and OpenAPI reference at
+  `/api/docs` for signed-in staff.
 
-## Development
+## Documentation
 
-See `CLAUDE.md` for commands, layout and conventions.
+- [`docs/OPERATIONS.md`](docs/OPERATIONS.md) — install, TLS, upgrades, backups, restore, recovery
+- [`docs/api.md`](docs/api.md) — service accounts, API tokens, PowerShell and curl examples
+- [`docs/PRODUCT_OVERVIEW.md`](docs/PRODUCT_OVERVIEW.md) — v1 product scope
+- [`docs/IMPLEMENTATION.md`](docs/IMPLEMENTATION.md) — architecture, data model and build plan
+- [`CLAUDE.md`](CLAUDE.md) — development commands, layout and engineering decisions
 
 ## License
 
-GPL v3. See `LICENSE`.
+GPL v3. See [`LICENSE`](LICENSE).

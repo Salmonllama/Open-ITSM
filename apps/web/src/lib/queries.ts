@@ -5,13 +5,19 @@ import {
   assetSchema,
   assignmentSuggestionsSchema,
   assetTypeSchema,
+  authMethodsSchema,
+  backupStatusSchema,
   consumableDetailSchema,
   consumableListResponseSchema,
+  entraSettingsSchema,
   lowStockSummarySchema,
   mailSettingsSchema,
   mailStatusSchema,
   notificationSettingsSchema,
   openRepairListSchema,
+  portalSettingsSchema,
+  portalTicketDetailSchema,
+  portalTicketListResponseSchema,
   requesterListSchema,
   serviceAccountSchema,
   ticketAssigneeListSchema,
@@ -195,4 +201,39 @@ export const notificationSettingsQuery = queryOptions({
   queryKey: ['notifications'],
   queryFn: () =>
     apiRequest('GET', '/api/settings/notifications', { schema: notificationSettingsSchema }),
+});
+
+export const authMethodsQuery = queryOptions({
+  queryKey: ['auth-methods'],
+  queryFn: () => apiRequest('GET', '/api/auth/methods', { schema: authMethodsSchema }),
+  staleTime: 60_000,
+});
+
+export const entraSettingsQuery = queryOptions({
+  queryKey: ['sso', 'settings'],
+  queryFn: () => apiRequest('GET', '/api/settings/sso', { schema: entraSettingsSchema }),
+});
+
+export const portalSettingsQuery = queryOptions({
+  queryKey: ['portal', 'settings'],
+  queryFn: () => apiRequest('GET', '/api/settings/portal', { schema: portalSettingsSchema }),
+});
+
+export const portalTicketsQuery = queryOptions({
+  queryKey: ['portal', 'tickets'],
+  queryFn: () =>
+    apiRequest('GET', '/api/portal/tickets', { schema: portalTicketListResponseSchema }),
+});
+
+export function portalTicketQuery(id: string) {
+  return queryOptions({
+    queryKey: ['portal', 'tickets', id],
+    queryFn: () =>
+      apiRequest('GET', `/api/portal/tickets/${id}`, { schema: portalTicketDetailSchema }),
+  });
+}
+
+export const backupStatusQuery = queryOptions({
+  queryKey: ['backups'],
+  queryFn: () => apiRequest('GET', '/api/backups', { schema: backupStatusSchema }),
 });

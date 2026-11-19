@@ -1,6 +1,6 @@
 {
   "name": "open-itsm",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "private": true,
   "license": "GPL-3.0-only",
   "type": "module",
@@ -16,10 +16,12 @@
     "format:check": "prettier --check .",
     "typecheck": "pnpm -r typecheck",
     "test": "pnpm -r test",
+    "test:e2e": "playwright test",
     "check": "pnpm lint && pnpm format:check && pnpm typecheck && pnpm test"
   },
   "devDependencies": {
     "@eslint/js": "10.0.1",
+    "@playwright/test": "1.65.1",
     "@types/node": "24.19.2",
     "eslint": "10.4.0",
     "eslint-config-prettier": "10.1.8",

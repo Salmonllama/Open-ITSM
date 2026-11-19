@@ -1,14 +1,24 @@
 import pino from 'pino';
 import { buildApp } from './app.js';
 import { AttachmentStore } from './attachments.js';
+import { EntraService } from './auth/entra.js';
 import { SetupToken } from './auth/setup-token.js';
+import { startBackupJobs } from './backups/jobs.js';
+import { BackupService } from './backups/service.js';
 import { ConfigError, loadConfig } from './config.js';
-import { checkDatabase, createDb, createPool, runMigrations } from './db/client.js';
+import {
+  checkDatabase,
+  createDb,
+  createPool,
+  hasPendingMigrations,
+  runMigrations,
+} from './db/client.js';
 import { loggerOptions } from './logging.js';
 import { startMailJobs } from './mail/jobs.js';
 import { MailService } from './mail/service.js';
 import { startNotificationJobs } from './notifications/jobs.js';
 import { NotificationService } from './notifications/service.js';
+import { PortalService } from './portal/service.js';
 import { checkQueue, createQueue } from './queue.js';
 import { hasUsers } from './routes/setup.js';
 
@@ -25,6 +35,36 @@ async function main(): Promise<void> {
   const pool = createPool(config.databaseUrl);
   pool.on('error', (err) => logger.error({ err }, 'database pool error'));
   const db = createDb(pool);
+
+  const backups = new BackupService(
+    db,
+    {
+      databaseUrl: config.databaseUrl,
+      attachmentsDir: config.attachmentsDir,
+      backupsDir: config.backupsDir,
+      retentionDays: config.backupRetentionDays,
+      appVersion: config.version,
+    },
+    logger.child({ component: 'backups' }),
+  );
+
+  // Before applying migrations to an existing install, take an automatic backup.
+  if (await hasPendingMigrations(pool)) {
+    try {
+      const pre = await backups.createBackup('pre_migration');
+      logger.info({ name: pre.name }, 'pre-migration backup created');
+    } catch (err) {
+      if (config.env === 'production') {
+        logger.fatal(
+          { err },
+          'pre-migration backup failed; refusing to run migrations (no changes were applied)',
+        );
+        await pool.end();
+        process.exit(1);
+      }
+      logger.warn({ err }, 'pre-migration backup skipped in non-production environment');
+    }
+  }
 
   // A failed migration rolls back and stops startup, leaving the data as it was.
   try {
@@ -48,6 +88,16 @@ async function main(): Promise<void> {
   await queue.start();
 
   const attachments = new AttachmentStore(config.attachmentsDir);
+  const entra = new EntraService(
+    db,
+    {
+      secretKey: config.appSecretKey,
+      loginUrl: config.loginUrl,
+      graphUrl: config.graphUrl,
+      siteUrl: config.siteUrl,
+    },
+    logger.child({ component: 'entra' }),
+  );
   const mail = new MailService(
     db,
     {
@@ -58,6 +108,12 @@ async function main(): Promise<void> {
     },
     logger.child({ component: 'mail' }),
   );
+  const portal = new PortalService(
+    db,
+    { entra, mail, siteUrl: config.siteUrl },
+    logger.child({ component: 'portal' }),
+  );
+  entra.allowEndUsers = () => portal.isEnabled();
   const notifications = new NotificationService(
     db,
     { secretKey: config.appSecretKey, siteUrl: config.siteUrl },
@@ -65,10 +121,12 @@ async function main(): Promise<void> {
   );
   mail.onTicketCreated = (id) => notifications.ticketCreated(id);
   await startNotificationJobs(queue, notifications);
+  await startBackupJobs(queue, { db, backups, log: logger.child({ component: 'jobs' }) });
   await startMailJobs(queue, {
     db,
     mail,
     store: attachments,
+    portal,
     log: logger.child({ component: 'jobs' }),
   });
 
@@ -82,6 +140,9 @@ async function main(): Promise<void> {
     db,
     sessionSecret: config.sessionSecret,
     setupToken,
+    entra,
+    portal,
+    backups,
     mail,
     notifications,
     attachments,

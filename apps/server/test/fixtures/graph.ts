@@ -223,6 +223,34 @@ export class FakeGraph {
       return json(201, this.draft({ subject: '', to: [] }));
     }
 
+    if (method === 'POST' && route === 'sendMail') {
+      const m = body?.message as
+        | {
+            subject?: string;
+            body?: { content?: string };
+            toRecipients?: { emailAddress: Address }[];
+          }
+        | undefined;
+      const text = m?.body?.content ?? '';
+      this.messages.push({
+        id: randomUUID(),
+        folder: 'sent',
+        subject: m?.subject ?? '',
+        from: { address: MAILBOX },
+        to: (m?.toRecipients ?? []).map((r) => r.emailAddress),
+        body: text,
+        uniqueBody: text,
+        receivedDateTime: new Date().toISOString(),
+        internetMessageId: `<${randomUUID()}@send.test>`,
+        conversationId: randomUUID(),
+        headers: [],
+        attachments: [],
+        isDraft: false,
+        seq: ++this.seq,
+      });
+      return new Response(null, { status: 202 });
+    }
+
     const [, id, sub, attId, value] = ['', ...rest.slice(1)];
     if (rest[0] !== 'messages' || !id) return graphError(400, 'BadRequest');
     const msg = this.messages.find((m) => m.id === id);

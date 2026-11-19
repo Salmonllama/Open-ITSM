@@ -6,11 +6,14 @@ import type { LightMyRequestResponse } from 'fastify';
 import pino from 'pino';
 import { AttachmentStore } from '../../src/attachments.js';
 import { buildApp, type AppOptions } from '../../src/app.js';
+import { EntraService, type EntraOptions } from '../../src/auth/entra.js';
 import { SESSION_COOKIE } from '../../src/auth/http.js';
 import { SetupToken } from '../../src/auth/setup-token.js';
+import { BackupService, type BackupOptions } from '../../src/backups/service.js';
 import { createDb, createPool, type Db } from '../../src/db/client.js';
 import { MailService, type MailOptions } from '../../src/mail/service.js';
 import { NotificationService, type NotificationOptions } from '../../src/notifications/service.js';
+import { PortalService } from '../../src/portal/service.js';
 
 export const TEST_SESSION_SECRET = 'test-session-secret-at-least-32-characters';
 export const TEST_SETUP_TOKEN = 'test-setup-token';
@@ -46,6 +49,22 @@ export function makeMail(db: Db, options: Partial<MailOptions> = {}) {
 
 export const TEST_SITE_URL = 'https://itsm.test';
 
+/** Optional Entra ID SSO service against a stand-in OIDC + Graph fetch. */
+export function makeEntra(db: Db, options: Partial<EntraOptions> = {}) {
+  return new EntraService(
+    db,
+    {
+      secretKey: randomBytes(32),
+      loginUrl: TEST_LOGIN_URL,
+      graphUrl: TEST_GRAPH_URL,
+      siteUrl: TEST_SITE_URL,
+      fetch: () => Promise.reject(new Error('no Entra ID stand-in in this test')),
+      ...options,
+    },
+    pino({ level: 'silent' }),
+  );
+}
+
 /** Slack and Teams channels posting through `fetch` (a stand-in); messages go out inline. */
 export function makeNotifications(db: Db, options: Partial<NotificationOptions> = {}) {
   return new NotificationService(
@@ -60,14 +79,38 @@ export function makeNotifications(db: Db, options: Partial<NotificationOptions> 
   );
 }
 
+export function makeBackups(db: Db, options: Partial<BackupOptions> = {}) {
+  return new BackupService(
+    db,
+    {
+      databaseUrl: 'postgres://unused@127.0.0.1:1/unused',
+      attachmentsDir: mkdtempSync(path.join(tmpdir(), 'open-itsm-att-')),
+      backupsDir: mkdtempSync(path.join(tmpdir(), 'open-itsm-bak-')),
+      retentionDays: 14,
+      appVersion: '1.2.3',
+      ...options,
+    },
+    pino({ level: 'silent' }),
+  );
+}
+
 export async function makeApp(overrides: Partial<AppOptions> = {}) {
   const db = overrides.db ?? unusedDb();
-  const { mail, store } = makeMail(db);
+  const { mail: defaultMail, store } = makeMail(db);
+  const mail = overrides.mail ?? defaultMail;
+  const entra = overrides.entra ?? makeEntra(db);
+  const portal =
+    overrides.portal ??
+    new PortalService(db, { entra, mail, siteUrl: TEST_SITE_URL }, pino({ level: 'silent' }));
+  entra.allowEndUsers = () => portal.isEnabled();
   return buildApp({
     version: '1.2.3',
     logger: false,
     checks: { database: ok, queue: ok },
     db,
+    entra,
+    portal,
+    backups: makeBackups(db),
     mail,
     notifications: makeNotifications(db),
     attachments: store,
