@@ -25,12 +25,14 @@ import type { Db } from './db/client.js';
 import { registerHealthRoute, type HealthCheck } from './health.js';
 import type { MailService } from './mail/service.js';
 import type { NotificationService } from './notifications/service.js';
+import type { PortalService } from './portal/service.js';
 import { registerAssetTypeRoutes } from './routes/asset-types.js';
 import { registerAssetRoutes } from './routes/assets.js';
 import { registerAuthRoutes } from './routes/auth.js';
 import { registerConsumableRoutes } from './routes/consumables.js';
 import { registerMailRoutes } from './routes/mail.js';
 import { registerNotificationRoutes } from './routes/notifications.js';
+import { registerPortalRoutes } from './routes/portal.js';
 import { registerServiceAccountRoutes } from './routes/service-accounts.js';
 import { registerSetupRoutes } from './routes/setup.js';
 import { registerSsoRoutes } from './routes/sso.js';
@@ -47,6 +49,8 @@ export type AppOptions = {
   setupToken: SetupToken;
   /** Optional Microsoft Entra ID single sign-on. */
   entra: EntraService;
+  /** Optional end-user portal and one-time email sign-in links. */
+  portal: PortalService;
   /** The Microsoft 365 mailbox: settings, checking the inbox and sending replies. */
   mail: MailService;
   /** Slack and Teams channels and the messages they are sent. */
@@ -128,6 +132,7 @@ export async function buildApp(options: AppOptions): Promise<FastifyInstance> {
     tokens,
     setupToken: options.setupToken,
     entra: options.entra,
+    portal: options.portal,
     mail: options.mail,
     notifications: options.notifications,
     attachments: options.attachments,
@@ -135,6 +140,7 @@ export async function buildApp(options: AppOptions): Promise<FastifyInstance> {
   registerSetupRoutes(app, deps);
   registerAuthRoutes(app, deps);
   registerSsoRoutes(app, deps);
+  registerPortalRoutes(app, deps);
   registerUserRoutes(app, deps);
   registerServiceAccountRoutes(app, deps);
   registerAssetTypeRoutes(app, deps);

@@ -14,6 +14,9 @@ import {
   mailStatusSchema,
   notificationSettingsSchema,
   openRepairListSchema,
+  portalSettingsSchema,
+  portalTicketDetailSchema,
+  portalTicketListResponseSchema,
   requesterListSchema,
   serviceAccountSchema,
   ticketAssigneeListSchema,
@@ -209,3 +212,22 @@ export const entraSettingsQuery = queryOptions({
   queryKey: ['sso', 'settings'],
   queryFn: () => apiRequest('GET', '/api/settings/sso', { schema: entraSettingsSchema }),
 });
+
+export const portalSettingsQuery = queryOptions({
+  queryKey: ['portal', 'settings'],
+  queryFn: () => apiRequest('GET', '/api/settings/portal', { schema: portalSettingsSchema }),
+});
+
+export const portalTicketsQuery = queryOptions({
+  queryKey: ['portal', 'tickets'],
+  queryFn: () =>
+    apiRequest('GET', '/api/portal/tickets', { schema: portalTicketListResponseSchema }),
+});
+
+export function portalTicketQuery(id: string) {
+  return queryOptions({
+    queryKey: ['portal', 'tickets', id],
+    queryFn: () =>
+      apiRequest('GET', `/api/portal/tickets/${id}`, { schema: portalTicketDetailSchema }),
+  });
+}

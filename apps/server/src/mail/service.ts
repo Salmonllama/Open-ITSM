@@ -383,4 +383,21 @@ export class MailService {
   async canSend(): Promise<boolean> {
     return (await this.active()) !== null;
   }
+
+  /** Sends a plain-text system email (such as an end-user one-time sign-in link). */
+  async sendSystemEmail(to: string, subject: string, body: string): Promise<boolean> {
+    const active = await this.active();
+    if (!active) return false;
+    await active.client.request('POST', `${active.client.mailboxPath}/sendMail`, {
+      body: {
+        message: {
+          subject,
+          body: { contentType: 'Text', content: body },
+          toRecipients: [{ emailAddress: { address: to } }],
+        },
+        saveToSentItems: false,
+      },
+    });
+    return true;
+  }
 }

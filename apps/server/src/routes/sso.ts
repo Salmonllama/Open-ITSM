@@ -41,7 +41,10 @@ function clearOidcCookie(reply: FastifyReply) {
   });
 }
 
-export function registerSsoRoutes(app: FastifyInstance, { db, sessions, entra }: RouteDeps) {
+export function registerSsoRoutes(
+  app: FastifyInstance,
+  { db, sessions, entra, portal, mail }: RouteDeps,
+) {
   const r = app.withTypeProvider<ZodTypeProvider>();
 
   r.get(
@@ -54,11 +57,18 @@ export function registerSsoRoutes(app: FastifyInstance, { db, sessions, entra }:
         response: { 200: authMethodsSchema },
       },
     },
-    async () => ({
-      local: true as const,
-      entra: { enabled: await entra.isEnabled() },
-      emailLink: { enabled: false },
-    }),
+    async () => {
+      const [entraEnabled, portalEnabled, mailConnected] = await Promise.all([
+        entra.isEnabled(),
+        portal.isEnabled(),
+        mail.canSend(),
+      ]);
+      return {
+        local: true as const,
+        entra: { enabled: entraEnabled },
+        emailLink: { enabled: portalEnabled && mailConnected },
+      };
+    },
   );
 
   r.get(

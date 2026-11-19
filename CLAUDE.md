@@ -20,6 +20,7 @@ voice, logo) and the page mockups that every screen must follow.
 | M7 Microsoft 365 mailbox, email intake, threading, replies, attachments | Done (CI green on PR #14; checked on a real tenant)     |
 | M8 Slack and Teams notifications per channel                            | Done (CI green on PR #15)                               |
 | M9 Entra ID single sign-on with technician group and recovery CLI       | Done (local check green; part of v1 PR)                 |
+| M10 Optional end-user portal with Entra ID and one-time email links     | Done (local check green; part of v1 PR)                 |
 
 Update this table when a milestone is committed.
 
@@ -454,6 +455,17 @@ Dockerfile        multi-stage; runtime runs as `node`, files root-owned
   adds `itsm disable-sso`.
 - **New dependency in M9:** `openid-client` (server), per `docs/IMPLEMENTATION.md`, for standard
   OIDC discovery, JWKS signature verification, PKCE, and nonce/state checks.
+- **End-user portal (M10):** off by default (`settings` key `portal`, toggled on `/admin/portal`,
+  ADMIN_ONLY, no token scope). Switching it off immediately revokes active `end_user` sessions and
+  invalidates pending sign-in links. Requesters sign in with Entra ID (when SSO is enabled; users
+  outside the technician group get `role: 'end_user'`) or with a single-use 15-minute link emailed
+  through the connected Microsoft 365 shared mailbox (`login_links`, storing only SHA-256 of the
+  token; redeemed via explicit POST on `/login/link` so email link scanners cannot burn it). Staff
+  emails never receive magic links. End users can reach only `/api/portal/*` (`END_USER_ONLY`),
+  scoped in SQL to `requesters.email = session.user.email` and excluding internal notes
+  (`kind != 'note'`), and can reply to their own open tickets (moving `waiting_on_user` back to
+  `in_progress`). Phone-friendly layout at `/portal`.
+- **New dependencies in M10:** none.
 
 ## Open questions
 

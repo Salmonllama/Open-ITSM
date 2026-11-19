@@ -31,7 +31,10 @@ export type AuditAction =
   | 'settings.entra_updated'
   | 'settings.entra_tested'
   | 'settings.entra_disconnected'
-  | 'settings.entra_disabled';
+  | 'settings.entra_disabled'
+  | 'settings.portal_updated'
+  | 'login_link.requested'
+  | 'login_link.failed';
 
 export type AuditEntry = {
   action: AuditAction;

@@ -12,6 +12,7 @@ import { SetupToken } from '../../src/auth/setup-token.js';
 import { createDb, createPool, type Db } from '../../src/db/client.js';
 import { MailService, type MailOptions } from '../../src/mail/service.js';
 import { NotificationService, type NotificationOptions } from '../../src/notifications/service.js';
+import { PortalService } from '../../src/portal/service.js';
 
 export const TEST_SESSION_SECRET = 'test-session-secret-at-least-32-characters';
 export const TEST_SETUP_TOKEN = 'test-setup-token';
@@ -79,13 +80,20 @@ export function makeNotifications(db: Db, options: Partial<NotificationOptions> 
 
 export async function makeApp(overrides: Partial<AppOptions> = {}) {
   const db = overrides.db ?? unusedDb();
-  const { mail, store } = makeMail(db);
+  const { mail: defaultMail, store } = makeMail(db);
+  const mail = overrides.mail ?? defaultMail;
+  const entra = overrides.entra ?? makeEntra(db);
+  const portal =
+    overrides.portal ??
+    new PortalService(db, { entra, mail, siteUrl: TEST_SITE_URL }, pino({ level: 'silent' }));
+  entra.allowEndUsers = () => portal.isEnabled();
   return buildApp({
     version: '1.2.3',
     logger: false,
     checks: { database: ok, queue: ok },
     db,
-    entra: makeEntra(db),
+    entra,
+    portal,
     mail,
     notifications: makeNotifications(db),
     attachments: store,

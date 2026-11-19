@@ -10,6 +10,7 @@ import { startMailJobs } from './mail/jobs.js';
 import { MailService } from './mail/service.js';
 import { startNotificationJobs } from './notifications/jobs.js';
 import { NotificationService } from './notifications/service.js';
+import { PortalService } from './portal/service.js';
 import { checkQueue, createQueue } from './queue.js';
 import { hasUsers } from './routes/setup.js';
 
@@ -69,6 +70,12 @@ async function main(): Promise<void> {
     },
     logger.child({ component: 'mail' }),
   );
+  const portal = new PortalService(
+    db,
+    { entra, mail, siteUrl: config.siteUrl },
+    logger.child({ component: 'portal' }),
+  );
+  entra.allowEndUsers = () => portal.isEnabled();
   const notifications = new NotificationService(
     db,
     { secretKey: config.appSecretKey, siteUrl: config.siteUrl },
@@ -80,6 +87,7 @@ async function main(): Promise<void> {
     db,
     mail,
     store: attachments,
+    portal,
     log: logger.child({ component: 'jobs' }),
   });
 
@@ -94,6 +102,7 @@ async function main(): Promise<void> {
     sessionSecret: config.sessionSecret,
     setupToken,
     entra,
+    portal,
     mail,
     notifications,
     attachments,

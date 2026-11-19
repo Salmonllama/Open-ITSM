@@ -7,6 +7,7 @@ import type { AttachmentStore } from '../attachments.js';
 import type { Db } from '../db/client.js';
 import type { MailService } from '../mail/service.js';
 import type { NotificationService } from '../notifications/service.js';
+import type { PortalService } from '../portal/service.js';
 
 export type RouteDeps = {
   db: Db;
@@ -14,6 +15,7 @@ export type RouteDeps = {
   tokens: TokenStore;
   setupToken: SetupToken;
   entra: EntraService;
+  portal: PortalService;
   mail: MailService;
   notifications: NotificationService;
   attachments: AttachmentStore;
@@ -46,5 +48,7 @@ export const ASSETS_READ: RouteAccess = { roles: STAFF_ROLES, scopes: ['assets:r
 export const ASSETS_WRITE: RouteAccess = { roles: STAFF_ROLES, scopes: ['assets:write'] };
 /** Signed-in staff only; no token scope reaches these. */
 export const STAFF_ONLY: RouteAccess = { roles: STAFF_ROLES };
+/** Signed-in end users only; no token scope reaches these. */
+export const END_USER_ONLY: RouteAccess = { roles: ['end_user'] };
 export const TICKETS_READ: RouteAccess = { roles: STAFF_ROLES, scopes: ['tickets:read'] };
 export const TICKETS_WRITE: RouteAccess = { roles: STAFF_ROLES, scopes: ['tickets:write'] };

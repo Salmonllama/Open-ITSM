@@ -668,3 +668,26 @@ export const notificationChannels = pgTable(
   },
   (t) => [uniqueIndex('notification_channels_name_key').on(sql`lower(${t.name})`)],
 );
+
+/**
+ * Single-use sign-in links emailed to end-user requesters when the optional end-user portal
+ * is enabled. Only the SHA-256 hash of the token is stored, never the token itself.
+ */
+export const loginLinks = pgTable(
+  'login_links',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    email: text('email').notNull(),
+    tokenHash: text('token_hash').notNull(),
+    expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+    usedAt: timestamp('used_at', { withTimezone: true }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    ip: text('ip'),
+  },
+  (t) => [
+    uniqueIndex('login_links_token_hash_key').on(t.tokenHash),
+    index('login_links_email_created_idx').on(t.email, t.createdAt),
+    index('login_links_expires_at_idx').on(t.expiresAt),
+    check('login_links_email_normalized', sql`${t.email} = lower(btrim(${t.email}))`),
+  ],
+);

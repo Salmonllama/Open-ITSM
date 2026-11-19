@@ -17,6 +17,8 @@ export async function createTestDatabase(): Promise<TestDatabase> {
   const url = new URL(testDatabaseUrl);
   url.pathname = `/${name}`;
   const pool = createPool(url.toString());
+  // Ignore connection-terminated errors emitted while `drop database ... with (force)` tears down.
+  pool.on('error', () => undefined);
   const db = createDb(pool);
   await runMigrations(db);
 

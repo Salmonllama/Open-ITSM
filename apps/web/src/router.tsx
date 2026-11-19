@@ -2,6 +2,7 @@ import { QueryClient } from '@tanstack/react-query';
 import { createRouter } from '@tanstack/react-router';
 import { adminEmailRoute } from './routes/admin-email';
 import { adminNotificationsRoute } from './routes/admin-notifications';
+import { adminPortalRoute } from './routes/admin-portal';
 import { adminServiceAccountsRoute } from './routes/admin-service-accounts';
 import { adminSsoRoute } from './routes/admin-sso';
 import { adminUsersRoute } from './routes/admin-users';
@@ -15,6 +16,8 @@ import { authedRoute } from './routes/authed';
 import { consumablesRoute, consumableViewRoute } from './routes/consumables';
 import { indexRoute } from './routes/index';
 import { loginRoute } from './routes/login';
+import { loginLinkRoute } from './routes/login-link';
+import { portalLayoutRoute, portalTicketsRoute, portalTicketViewRoute } from './routes/portal';
 import { rootRoute } from './routes/root';
 import { scanRoute, tagRoute } from './routes/scan';
 import { setupRoute } from './routes/setup';
@@ -28,6 +31,8 @@ export const queryClient = new QueryClient({
 const routeTree = rootRoute.addChildren([
   setupRoute,
   loginRoute,
+  loginLinkRoute,
+  portalLayoutRoute.addChildren([portalTicketsRoute, portalTicketViewRoute]),
   authedRoute.addChildren([
     indexRoute,
     ticketsRoute,
@@ -49,6 +54,7 @@ const routeTree = rootRoute.addChildren([
     adminEmailRoute,
     adminNotificationsRoute,
     adminSsoRoute,
+    adminPortalRoute,
   ]),
 ]);
 
