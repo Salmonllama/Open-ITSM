@@ -9,6 +9,7 @@ import {
   type LowStockMode,
   type NotificationChannel,
   type NotificationEvent,
+  type NotificationSettings,
   type UpdateChannelRequest,
 } from '@open-itsm/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -105,19 +106,28 @@ function useRefresh() {
   return () => queryClient.invalidateQueries({ queryKey: ['notifications'] });
 }
 
+function channelStamp(channel: NotificationChannel): string {
+  return `${channel.webhookHint}|${channel.enabled}|${channel.lastSentAt ?? ''}|${channel.lastErrorAt ?? ''}`;
+}
+
 function ChannelCard({ channel, onEdit }: { channel: NotificationChannel; onEdit: () => void }) {
+  const queryClient = useQueryClient();
   const refresh = useRefresh();
   const [confirming, setConfirming] = useState(false);
-  const [tested, setTested] = useState<ChannelTestResult>();
+  const [tested, setTested] = useState<{ result: ChannelTestResult; stamp: string }>();
   const state = channelState(channel);
+  const shownTest = tested?.stamp === channelStamp(channel) ? tested.result : undefined;
   const test = useMutation({
     mutationFn: () =>
       apiRequest('POST', `/api/settings/notifications/${channel.id}/test`, {
         schema: channelTestResultSchema,
       }),
     onSuccess: async (result) => {
-      setTested(result);
-      await refresh();
+      await queryClient.refetchQueries({ queryKey: ['notifications'] });
+      const latest = queryClient
+        .getQueryData<NotificationSettings>(['notifications'])
+        ?.channels.find((c) => c.id === channel.id);
+      setTested({ result, stamp: channelStamp(latest ?? channel) });
     },
   });
   const remove = useMutation({
@@ -150,7 +160,7 @@ function ChannelCard({ channel, onEdit }: { channel: NotificationChannel; onEdit
           </dd>
         </div>
       </dl>
-      {channel.lastError && !tested && (
+      {channel.lastError && !shownTest && (
         <p
           role="alert"
           className="m-0 flex items-start gap-2 rounded-md bg-danger-soft px-3 py-2 text-danger"
@@ -166,7 +176,7 @@ function ChannelCard({ channel, onEdit }: { channel: NotificationChannel; onEdit
           </span>
         </p>
       )}
-      {tested && <TestResult result={tested} />}
+      {shownTest && <TestResult result={shownTest} />}
       <ErrorMessage error={test.error ?? remove.error} />
       <div className="flex flex-wrap gap-2">
         <Button
@@ -180,7 +190,13 @@ function ChannelCard({ channel, onEdit }: { channel: NotificationChannel; onEdit
           <Send aria-hidden="true" strokeWidth={1.75} />
           {test.isPending ? 'Sending…' : 'Send test message'}
         </Button>
-        <Button size="sm" onClick={onEdit}>
+        <Button
+          size="sm"
+          onClick={() => {
+            setTested(undefined);
+            onEdit();
+          }}
+        >
           Edit
         </Button>
         <Button size="sm" variant="danger" onClick={() => setConfirming(true)}>

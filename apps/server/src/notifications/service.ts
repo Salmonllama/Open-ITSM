@@ -200,7 +200,7 @@ export class NotificationService {
       link: this.link('Open Open ITSM', '/'),
     };
     try {
-      await this.postTo(row, notice);
+      await this.postTo(row, notice, false);
       return { ok: true, message: `Sent a test message to ${row.name}.` };
     } catch (err) {
       if (err instanceof DeliveryError) return { ok: false, message: err.message };
@@ -213,7 +213,7 @@ export class NotificationService {
   }
 
   /** Posts to a channel and records the outcome on it. */
-  private async postTo(row: ChannelRow, notice: Notice): Promise<void> {
+  private async postTo(row: ChannelRow, notice: Notice, willRetry: boolean): Promise<void> {
     try {
       let url: string;
       try {
@@ -228,9 +228,11 @@ export class NotificationService {
       await post(this.options.fetch ?? fetch, row.kind, url, notice);
     } catch (err) {
       if (err instanceof DeliveryError) {
+        const message =
+          err.temporary && willRetry ? `${err.message} It will be tried again.` : err.message;
         await this.db
           .update(notificationChannels)
-          .set({ lastError: err.message, lastErrorAt: new Date() })
+          .set({ lastError: message, lastErrorAt: new Date() })
           .where(eq(notificationChannels.id, row.id));
       }
       throw err;
@@ -252,7 +254,7 @@ export class NotificationService {
       .where(eq(notificationChannels.id, delivery.channelId));
     if (!row?.enabled) return;
     try {
-      await this.postTo(row, delivery.notice);
+      await this.postTo(row, delivery.notice, !last);
     } catch (err) {
       if (err instanceof DeliveryError) {
         this.log.warn(

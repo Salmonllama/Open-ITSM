@@ -348,6 +348,14 @@ describe.skipIf(!testDatabaseUrl)('Slack and Teams notifications', () => {
     const listed = (await req(admin, 'GET', '/api/settings/notifications')).json();
     expect(listed.channels[0].lastError).toMatch(/no longer exists/);
 
+    // A temporary failure on a test message does not promise a retry.
+    hooks.answers = [503];
+    const down = await req(admin, 'POST', `/api/settings/notifications/${channel.id}/test`);
+    expect(down.json()).toEqual({
+      ok: false,
+      message: 'Slack is not available right now (status 503).',
+    });
+
     // A message that goes through clears it.
     await openTicket();
     const after = (await req(admin, 'GET', '/api/settings/notifications')).json();
@@ -356,21 +364,27 @@ describe.skipIf(!testDatabaseUrl)('Slack and Teams notifications', () => {
 
   it('retries temporary failures and never fails the change that caused the message', async () => {
     const channel = await addChannel({ events: ['ticket_created'] });
-    hooks.answers = [503, 503];
-    // Inline delivery gives up at once, but the ticket is still opened.
+    hooks.answers = [503];
+    // Inline delivery gives up at once, so the stored error does not promise a retry.
     const ticket = await openTicket();
     expect(ticket.number).toBeGreaterThan(0);
     const listed = (await req(admin, 'GET', '/api/settings/notifications')).json();
-    expect(listed.channels[0].lastError).toBe(
-      'Slack is not available right now (status 503). It will be tried again.',
-    );
+    expect(listed.channels[0].lastError).toBe('Slack is not available right now (status 503).');
 
-    // As a job: a temporary failure throws so it is tried again; the last attempt does not.
+    // As a job: a temporary failure throws and notes it will retry; the last attempt stops and clears that wording.
     const delivery = { channelId: channel.id, notice: { title: 'x', detail: 'y' } };
     hooks.answers = [503];
     await expect(notifications.deliver(delivery, false)).rejects.toThrow(/not available/);
+    const retrying = (await req(admin, 'GET', '/api/settings/notifications')).json();
+    expect(retrying.channels[0].lastError).toBe(
+      'Slack is not available right now (status 503). It will be tried again.',
+    );
+
     hooks.answers = [503];
     await expect(notifications.deliver(delivery, true)).resolves.toBeUndefined();
+    const gaveUp = (await req(admin, 'GET', '/api/settings/notifications')).json();
+    expect(gaveUp.channels[0].lastError).toBe('Slack is not available right now (status 503).');
+
     hooks.answers = [400];
     await expect(notifications.deliver(delivery, false)).resolves.toBeUndefined();
     await expect(notifications.deliver(delivery, false)).resolves.toBeUndefined(); // 200

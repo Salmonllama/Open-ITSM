@@ -119,16 +119,10 @@ function reasonIn(body: string): string {
 export function deliveryError(kind: ChannelKind, status: number, body: string): DeliveryError {
   const service = SERVICE[kind];
   if (status === 429) {
-    return new DeliveryError(
-      `${service} is limiting messages right now. It will be tried again.`,
-      true,
-    );
+    return new DeliveryError(`${service} is limiting messages right now.`, true);
   }
   if (status >= 500) {
-    return new DeliveryError(
-      `${service} is not available right now (status ${status}). It will be tried again.`,
-      true,
-    );
+    return new DeliveryError(`${service} is not available right now (status ${status}).`, true);
   }
   if (status === 404 || status === 410) {
     return new DeliveryError(
@@ -171,7 +165,7 @@ export async function post(
   } catch {
     // Never the error itself: it can carry the URL, which is a credential.
     throw new DeliveryError(
-      `Could not reach ${SERVICE[kind]}. Check this server can make outbound https connections. It will be tried again.`,
+      `Could not reach ${SERVICE[kind]}. Check this server can make outbound https connections.`,
       true,
     );
   }

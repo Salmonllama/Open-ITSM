@@ -19,8 +19,17 @@ describe('loadConfig', () => {
     expect(loadConfig({ ...validEnv, APP_HOSTNAME: 'itsm.example.com' }).siteUrl).toBe(
       'https://itsm.example.com',
     );
+    expect(loadConfig({ ...validEnv, APP_HOSTNAME: 'localhost' }).siteUrl).toBe(
+      'https://localhost',
+    );
+    expect(loadConfig({ ...validEnv, APP_HOSTNAME: 'itsm.example.com:8443' }).siteUrl).toBe(
+      'https://itsm.example.com:8443',
+    );
+    expect(loadConfig({ ...validEnv, APP_HOSTNAME: '[::1]' }).siteUrl).toBe('https://[::1]');
     expect(loadConfig({ ...validEnv, APP_HOSTNAME: '' }).siteUrl).toBeNull();
-    expect(() => loadConfig({ ...validEnv, APP_HOSTNAME: 'https://x/y' })).toThrow(ConfigError);
+    for (const bad of ['https://x/y', ':80', '[bad', '...', '---', '-a.example.com', 'a..b.com']) {
+      expect(() => loadConfig({ ...validEnv, APP_HOSTNAME: bad })).toThrow(ConfigError);
+    }
   });
 
   it('reports every invalid variable without echoing secret values', () => {
