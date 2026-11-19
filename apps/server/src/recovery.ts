@@ -1,10 +1,11 @@
 import { emailSchema } from '@open-itsm/shared';
 import { asc, eq } from 'drizzle-orm';
 import { audit } from './audit.js';
+import { ENTRA_CONFIG_KEY } from './auth/entra.js';
 import { generatePassword, hashPassword } from './auth/password.js';
 import { SessionStore } from './auth/sessions.js';
 import type { Db } from './db/client.js';
-import { users } from './db/schema.js';
+import { settings, users } from './db/schema.js';
 
 export const USAGE = `Open ITSM admin recovery
 
@@ -17,6 +18,8 @@ Commands:
                                   Set a new random password for a local account, clear any
                                   lockout and sign it out everywhere. --enable also re-enables
                                   a disabled account. The new password is printed once.
+  disable-sso                     Switch off Microsoft Entra ID single sign-in without removing
+                                  its saved settings. Local accounts remain available.
   help                            Show this message
 `;
 
@@ -92,6 +95,36 @@ export async function runRecovery(
     io.out('It is shown only once. Sign in with it, then set a new password on the Users page.');
     if (result.stillDisabled) {
       io.out('Note: this account is disabled. Re-run with --enable to re-enable it.');
+    }
+    return 0;
+  }
+
+  if (command === 'disable-sso') {
+    const result = await deps.db.transaction(async (tx) => {
+      const [row] = await tx
+        .select()
+        .from(settings)
+        .where(eq(settings.key, ENTRA_CONFIG_KEY))
+        .for('update');
+      if (!row) return 'not_configured' as const;
+      const value = row.value as Record<string, unknown>;
+      if (value.enabled === false) return 'already_off' as const;
+      await tx
+        .update(settings)
+        .set({ value: { ...value, enabled: false }, updatedAt: new Date() })
+        .where(eq(settings.key, ENTRA_CONFIG_KEY));
+      await audit(tx, {
+        action: 'settings.entra_disabled',
+        details: { via: 'cli' },
+      });
+      return 'disabled' as const;
+    });
+    if (result === 'not_configured') {
+      io.out('Microsoft Entra ID sign-in is not configured.');
+    } else if (result === 'already_off') {
+      io.out('Microsoft Entra ID sign-in is already switched off.');
+    } else {
+      io.out('Microsoft Entra ID sign-in has been switched off. Local accounts still work.');
     }
     return 0;
   }

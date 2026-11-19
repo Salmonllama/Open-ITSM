@@ -5,8 +5,10 @@ import {
   assetSchema,
   assignmentSuggestionsSchema,
   assetTypeSchema,
+  authMethodsSchema,
   consumableDetailSchema,
   consumableListResponseSchema,
+  entraSettingsSchema,
   lowStockSummarySchema,
   mailSettingsSchema,
   mailStatusSchema,
@@ -195,4 +197,15 @@ export const notificationSettingsQuery = queryOptions({
   queryKey: ['notifications'],
   queryFn: () =>
     apiRequest('GET', '/api/settings/notifications', { schema: notificationSettingsSchema }),
+});
+
+export const authMethodsQuery = queryOptions({
+  queryKey: ['auth-methods'],
+  queryFn: () => apiRequest('GET', '/api/auth/methods', { schema: authMethodsSchema }),
+  staleTime: 60_000,
+});
+
+export const entraSettingsQuery = queryOptions({
+  queryKey: ['sso', 'settings'],
+  queryFn: () => apiRequest('GET', '/api/settings/sso', { schema: entraSettingsSchema }),
 });

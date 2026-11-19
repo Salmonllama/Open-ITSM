@@ -16,6 +16,7 @@ import {
   validatorCompiler,
 } from 'fastify-type-provider-zod';
 import type { AttachmentStore } from './attachments.js';
+import type { EntraService } from './auth/entra.js';
 import { registerAuth, STAFF_ROLES, type TokenLimits } from './auth/http.js';
 import { SessionStore } from './auth/sessions.js';
 import { TokenStore } from './auth/tokens.js';
@@ -32,6 +33,7 @@ import { registerMailRoutes } from './routes/mail.js';
 import { registerNotificationRoutes } from './routes/notifications.js';
 import { registerServiceAccountRoutes } from './routes/service-accounts.js';
 import { registerSetupRoutes } from './routes/setup.js';
+import { registerSsoRoutes } from './routes/sso.js';
 import { registerTicketAttachmentRoutes } from './routes/ticket-attachments.js';
 import { registerTicketRoutes } from './routes/tickets.js';
 import { registerUserRoutes } from './routes/users.js';
@@ -43,6 +45,8 @@ export type AppOptions = {
   db: Db;
   sessionSecret: string;
   setupToken: SetupToken;
+  /** Optional Microsoft Entra ID single sign-on. */
+  entra: EntraService;
   /** The Microsoft 365 mailbox: settings, checking the inbox and sending replies. */
   mail: MailService;
   /** Slack and Teams channels and the messages they are sent. */
@@ -123,12 +127,14 @@ export async function buildApp(options: AppOptions): Promise<FastifyInstance> {
     sessions,
     tokens,
     setupToken: options.setupToken,
+    entra: options.entra,
     mail: options.mail,
     notifications: options.notifications,
     attachments: options.attachments,
   };
   registerSetupRoutes(app, deps);
   registerAuthRoutes(app, deps);
+  registerSsoRoutes(app, deps);
   registerUserRoutes(app, deps);
   registerServiceAccountRoutes(app, deps);
   registerAssetTypeRoutes(app, deps);

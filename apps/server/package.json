@@ -25,6 +25,7 @@
     "drizzle-orm": "0.45.4",
     "fastify": "5.12.7",
     "fastify-type-provider-zod": "7.0.0",
+    "openid-client": "6.9.0",
     "pg": "8.23.1",
     "pg-boss": "12.38.0",
     "pino": "10.4.0",

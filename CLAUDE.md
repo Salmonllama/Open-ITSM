@@ -18,7 +18,8 @@ voice, logo) and the page mockups that every screen must follow.
 | M5 Consumables, stock adjustments, repair link, low-stock notice        | Done (CI green on PR #11)                               |
 | M6 Tickets, requesters, queues, ticket page, linked assets, scopes      | Done (CI green on PR #12)                               |
 | M7 Microsoft 365 mailbox, email intake, threading, replies, attachments | Done (CI green on PR #14; checked on a real tenant)     |
-| M8 Slack and Teams notifications per channel                            | Built; PR open, waiting on CI                           |
+| M8 Slack and Teams notifications per channel                            | Done (CI green on PR #15)                               |
+| M9 Entra ID single sign-on with technician group and recovery CLI       | Done (local check green; part of v1 PR)                 |
 
 Update this table when a milestone is committed.
 
@@ -441,9 +442,20 @@ Dockerfile        multi-stage; runtime runs as `node`, files root-owned
 - **New dependency in M2:** `csv-parse` (server). Hand-rolled CSV parsing gets quoted commas,
   newlines in cells and BOMs wrong; csv-parse is the standard, dependency-free parser.
 
+- **Entra ID single sign-in (M9):** optional OIDC authorization code flow with PKCE (`S256`),
+  state and nonce in an AES-256-GCM encrypted HttpOnly cookie (`__Host-itsm_oidc`, 10-minute TTL).
+  Admins configure tenant ID, client ID, client secret (encrypted in `settings.secret`, bound to
+  `entra.client_secret`, never returned or logged), optional secret expiry date, and technician
+  group Object ID on Single sign-on (`/admin/sso`, ADMIN_ONLY, no token scope). Group membership
+  reads the ID token's `groups` claim when present and falls back to Microsoft Graph
+  `POST /me/checkMemberGroups` (delegated `GroupMember.Read.All`) on group overage or omitted
+  claims. Local accounts are never disabled and local admins are never demoted; misconfigured SSO
+  redirects back to `/login?ssoError=...` while local login continues to work. Host recovery CLI
+  adds `itsm disable-sso`.
+- **New dependency in M9:** `openid-client` (server), per `docs/IMPLEMENTATION.md`, for standard
+  OIDC discovery, JWKS signature verification, PKCE, and nonce/state checks.
+
 ## Open questions
 
 - GPL v3 is tentative until the first release (AGPL may be revisited if hosted SaaS happens).
   Do not change `LICENSE` without being told.
-- Admin recovery when SSO is misconfigured and the admin password is lost: the host-level
-  recovery CLI (`itsm reset-password`, M1); the SSO switch-off command comes with M9.

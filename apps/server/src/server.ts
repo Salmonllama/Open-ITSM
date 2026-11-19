@@ -1,6 +1,7 @@
 import pino from 'pino';
 import { buildApp } from './app.js';
 import { AttachmentStore } from './attachments.js';
+import { EntraService } from './auth/entra.js';
 import { SetupToken } from './auth/setup-token.js';
 import { ConfigError, loadConfig } from './config.js';
 import { checkDatabase, createDb, createPool, runMigrations } from './db/client.js';
@@ -48,6 +49,16 @@ async function main(): Promise<void> {
   await queue.start();
 
   const attachments = new AttachmentStore(config.attachmentsDir);
+  const entra = new EntraService(
+    db,
+    {
+      secretKey: config.appSecretKey,
+      loginUrl: config.loginUrl,
+      graphUrl: config.graphUrl,
+      siteUrl: config.siteUrl,
+    },
+    logger.child({ component: 'entra' }),
+  );
   const mail = new MailService(
     db,
     {
@@ -82,6 +93,7 @@ async function main(): Promise<void> {
     db,
     sessionSecret: config.sessionSecret,
     setupToken,
+    entra,
     mail,
     notifications,
     attachments,

@@ -27,7 +27,11 @@ export type AuditAction =
   | 'settings.channel_created'
   | 'settings.channel_updated'
   | 'settings.channel_tested'
-  | 'settings.channel_deleted';
+  | 'settings.channel_deleted'
+  | 'settings.entra_updated'
+  | 'settings.entra_tested'
+  | 'settings.entra_disconnected'
+  | 'settings.entra_disabled';
 
 export type AuditEntry = {
   action: AuditAction;

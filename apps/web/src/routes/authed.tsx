@@ -13,6 +13,7 @@ import {
   Package,
   ScanLine,
   Shapes,
+  ShieldCheck,
   Users,
   X,
 } from 'lucide-react';
@@ -144,6 +145,13 @@ function AuthedLayout() {
             onNavigate={onNavigate}
           >
             Notifications
+          </NavLink>
+          <NavLink
+            to="/admin/sso"
+            icon={<ShieldCheck strokeWidth={1.75} />}
+            onNavigate={onNavigate}
+          >
+            Single sign-on
           </NavLink>
         </>
       )}
@@ -285,7 +293,8 @@ function NavLink({
     | '/admin/users'
     | '/admin/service-accounts'
     | '/admin/email'
-    | '/admin/notifications';
+    | '/admin/notifications'
+    | '/admin/sso';
   exact?: boolean;
   icon: ReactNode;
   onNavigate?: () => void;

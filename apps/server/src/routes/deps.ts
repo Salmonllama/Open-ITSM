@@ -1,3 +1,4 @@
+import type { EntraService } from '../auth/entra.js';
 import { STAFF_ROLES, type RouteAccess } from '../auth/http.js';
 import type { SessionStore } from '../auth/sessions.js';
 import type { SetupToken } from '../auth/setup-token.js';
@@ -12,6 +13,7 @@ export type RouteDeps = {
   sessions: SessionStore;
   tokens: TokenStore;
   setupToken: SetupToken;
+  entra: EntraService;
   mail: MailService;
   notifications: NotificationService;
   attachments: AttachmentStore;

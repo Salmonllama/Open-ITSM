@@ -6,6 +6,7 @@ import type { LightMyRequestResponse } from 'fastify';
 import pino from 'pino';
 import { AttachmentStore } from '../../src/attachments.js';
 import { buildApp, type AppOptions } from '../../src/app.js';
+import { EntraService, type EntraOptions } from '../../src/auth/entra.js';
 import { SESSION_COOKIE } from '../../src/auth/http.js';
 import { SetupToken } from '../../src/auth/setup-token.js';
 import { createDb, createPool, type Db } from '../../src/db/client.js';
@@ -46,6 +47,22 @@ export function makeMail(db: Db, options: Partial<MailOptions> = {}) {
 
 export const TEST_SITE_URL = 'https://itsm.test';
 
+/** Optional Entra ID SSO service against a stand-in OIDC + Graph fetch. */
+export function makeEntra(db: Db, options: Partial<EntraOptions> = {}) {
+  return new EntraService(
+    db,
+    {
+      secretKey: randomBytes(32),
+      loginUrl: TEST_LOGIN_URL,
+      graphUrl: TEST_GRAPH_URL,
+      siteUrl: TEST_SITE_URL,
+      fetch: () => Promise.reject(new Error('no Entra ID stand-in in this test')),
+      ...options,
+    },
+    pino({ level: 'silent' }),
+  );
+}
+
 /** Slack and Teams channels posting through `fetch` (a stand-in); messages go out inline. */
 export function makeNotifications(db: Db, options: Partial<NotificationOptions> = {}) {
   return new NotificationService(
@@ -68,6 +85,7 @@ export async function makeApp(overrides: Partial<AppOptions> = {}) {
     logger: false,
     checks: { database: ok, queue: ok },
     db,
+    entra: makeEntra(db),
     mail,
     notifications: makeNotifications(db),
     attachments: store,

@@ -3,6 +3,7 @@ import { createRouter } from '@tanstack/react-router';
 import { adminEmailRoute } from './routes/admin-email';
 import { adminNotificationsRoute } from './routes/admin-notifications';
 import { adminServiceAccountsRoute } from './routes/admin-service-accounts';
+import { adminSsoRoute } from './routes/admin-sso';
 import { adminUsersRoute } from './routes/admin-users';
 import { assetImportRoute } from './routes/asset-import';
 import { assetLabelsRoute } from './routes/asset-labels';
@@ -47,6 +48,7 @@ const routeTree = rootRoute.addChildren([
     adminServiceAccountsRoute,
     adminEmailRoute,
     adminNotificationsRoute,
+    adminSsoRoute,
   ]),
 ]);
 
