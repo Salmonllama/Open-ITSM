@@ -68,6 +68,8 @@ export class NoSecretError extends Error {}
 export class MailService {
   /** Set by the server to the job queue; tests run the work inline. */
   queue: MailQueue = { poll: async () => {}, send: async () => {} };
+  /** Told about each ticket an email opens (notifications); set by the server. */
+  onTicketCreated: (ticketId: string) => Promise<void> = async () => {};
   private cached: { key: string; client: GraphClient } | null = null;
 
   constructor(
@@ -326,6 +328,7 @@ export class MailService {
             log: this.log,
             mailbox: config.mailbox,
             connectedAt: new Date(config.connectedAt),
+            onTicketCreated: (id) => this.onTicketCreated(id),
           },
           state,
         );

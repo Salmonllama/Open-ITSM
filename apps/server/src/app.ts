@@ -23,11 +23,13 @@ import type { SetupToken } from './auth/setup-token.js';
 import type { Db } from './db/client.js';
 import { registerHealthRoute, type HealthCheck } from './health.js';
 import type { MailService } from './mail/service.js';
+import type { NotificationService } from './notifications/service.js';
 import { registerAssetTypeRoutes } from './routes/asset-types.js';
 import { registerAssetRoutes } from './routes/assets.js';
 import { registerAuthRoutes } from './routes/auth.js';
 import { registerConsumableRoutes } from './routes/consumables.js';
 import { registerMailRoutes } from './routes/mail.js';
+import { registerNotificationRoutes } from './routes/notifications.js';
 import { registerServiceAccountRoutes } from './routes/service-accounts.js';
 import { registerSetupRoutes } from './routes/setup.js';
 import { registerTicketAttachmentRoutes } from './routes/ticket-attachments.js';
@@ -43,6 +45,8 @@ export type AppOptions = {
   setupToken: SetupToken;
   /** The Microsoft 365 mailbox: settings, checking the inbox and sending replies. */
   mail: MailService;
+  /** Slack and Teams channels and the messages they are sent. */
+  notifications: NotificationService;
   attachments: AttachmentStore;
   /** Directory holding the built web UI. Static serving is skipped when unset or missing. */
   webRoot?: string | undefined;
@@ -120,6 +124,7 @@ export async function buildApp(options: AppOptions): Promise<FastifyInstance> {
     tokens,
     setupToken: options.setupToken,
     mail: options.mail,
+    notifications: options.notifications,
     attachments: options.attachments,
   };
   registerSetupRoutes(app, deps);
@@ -132,6 +137,7 @@ export async function buildApp(options: AppOptions): Promise<FastifyInstance> {
   registerTicketRoutes(app, deps);
   registerTicketAttachmentRoutes(app, deps);
   registerMailRoutes(app, deps);
+  registerNotificationRoutes(app, deps);
 
   const webRoot = options.webRoot ? path.resolve(options.webRoot) : undefined;
   const serveWeb = webRoot !== undefined && existsSync(path.join(webRoot, 'index.html'));

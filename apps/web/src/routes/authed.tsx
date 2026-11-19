@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient, useSuspenseQuery } from '@tansta
 import { Link, Outlet, createRoute, redirect, useNavigate } from '@tanstack/react-router';
 import {
   Activity,
+  Bell,
   BookOpen,
   Inbox,
   KeyRound,
@@ -136,6 +137,13 @@ function AuthedLayout() {
                 {mailStatus.data.state === 'secret_expiring' ? 'Expires soon' : 'Needs attention'}
               </span>
             )}
+          </NavLink>
+          <NavLink
+            to="/admin/notifications"
+            icon={<Bell strokeWidth={1.75} />}
+            onNavigate={onNavigate}
+          >
+            Notifications
           </NavLink>
         </>
       )}
@@ -276,7 +284,8 @@ function NavLink({
     | '/consumables'
     | '/admin/users'
     | '/admin/service-accounts'
-    | '/admin/email';
+    | '/admin/email'
+    | '/admin/notifications';
   exact?: boolean;
   icon: ReactNode;
   onNavigate?: () => void;

@@ -325,6 +325,9 @@ async function markRead(tx: Pick<Db, 'insert'>, request: FastifyRequest, id: str
 
 type Current = { status: TicketStatus; assigneeId: string | null };
 
+/** A change that gave the ticket a (different) assignee, so channels are told. */
+const ASSIGNED = Symbol('assigned');
+
 /**
  * Applies a status and assignee change to a locked ticket and records an event for each part
  * that changed. Assigning a New ticket moves it to In progress unless a status is given.
@@ -430,7 +433,7 @@ async function linkAssets(
   return true;
 }
 
-export function registerTicketRoutes(app: FastifyInstance, { db, mail }: RouteDeps) {
+export function registerTicketRoutes(app: FastifyInstance, { db, mail, notifications }: RouteDeps) {
   const r = app.withTypeProvider<ZodTypeProvider>();
 
   r.get(
@@ -664,6 +667,7 @@ export function registerTicketRoutes(app: FastifyInstance, { db, mail }: RouteDe
           throw err;
         });
       if (!id) return reply.code(409).send(NO_ASSET);
+      await notifications.ticketCreated(id);
       return reply.code(201).send(await loadWritten(db, request, id));
     },
   );
@@ -702,10 +706,11 @@ export function registerTicketRoutes(app: FastifyInstance, { db, mail }: RouteDe
         const now = new Date();
         await applyChange(tx, request, id, current, { status, assigneeId }, now);
         await markRead(tx, request, id, now);
-        return undefined;
+        return assigneeId && assigneeId !== current.assigneeId ? ASSIGNED : undefined;
       });
       if (outcome === NOT_FOUND) return reply.code(404).send(NOT_FOUND);
-      if (outcome) return reply.code(409).send(outcome);
+      if (outcome === ASSIGNED) await notifications.ticketAssigned(id);
+      else if (outcome) return reply.code(409).send(outcome);
       return loadWritten(db, request, id);
     },
   );

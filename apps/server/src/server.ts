@@ -7,6 +7,8 @@ import { checkDatabase, createDb, createPool, runMigrations } from './db/client.
 import { loggerOptions } from './logging.js';
 import { startMailJobs } from './mail/jobs.js';
 import { MailService } from './mail/service.js';
+import { startNotificationJobs } from './notifications/jobs.js';
+import { NotificationService } from './notifications/service.js';
 import { checkQueue, createQueue } from './queue.js';
 import { hasUsers } from './routes/setup.js';
 
@@ -56,6 +58,13 @@ async function main(): Promise<void> {
     },
     logger.child({ component: 'mail' }),
   );
+  const notifications = new NotificationService(
+    db,
+    { secretKey: config.appSecretKey, siteUrl: config.siteUrl },
+    logger.child({ component: 'notifications' }),
+  );
+  mail.onTicketCreated = (id) => notifications.ticketCreated(id);
+  await startNotificationJobs(queue, notifications);
   await startMailJobs(queue, {
     db,
     mail,
@@ -74,6 +83,7 @@ async function main(): Promise<void> {
     sessionSecret: config.sessionSecret,
     setupToken,
     mail,
+    notifications,
     attachments,
     webRoot: config.webRoot,
   });

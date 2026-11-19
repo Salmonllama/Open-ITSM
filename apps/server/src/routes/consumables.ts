@@ -125,7 +125,7 @@ async function loadWritten(db: Executor, id: string): Promise<ConsumableDetail> 
   return detail;
 }
 
-export function registerConsumableRoutes(app: FastifyInstance, { db }: RouteDeps) {
+export function registerConsumableRoutes(app: FastifyInstance, { db, notifications }: RouteDeps) {
   const r = app.withTypeProvider<ZodTypeProvider>();
 
   r.get(
@@ -302,7 +302,8 @@ export function registerConsumableRoutes(app: FastifyInstance, { db }: RouteDeps
     async (request, reply) => {
       const { id } = request.params;
       const body = request.body;
-      const outcome = await db.transaction(async (tx: Tx) => {
+      type Outcome = { error: string; message: string } | { before: number; after: number };
+      const outcome = await db.transaction(async (tx: Tx): Promise<Outcome> => {
         // Lock the row so two uses at once cannot both pass the stock check.
         const [current] = await tx
           .select({ quantity: consumables.quantity })
@@ -352,10 +353,11 @@ export function registerConsumableRoutes(app: FastifyInstance, { db }: RouteDeps
           repairId,
           ...actorOf(request),
         });
-        return undefined;
+        return { before: current.quantity, after: current.quantity + change };
       });
       if (outcome === NOT_FOUND) return reply.code(404).send(NOT_FOUND);
-      if (outcome) return reply.code(409).send(outcome);
+      if ('error' in outcome) return reply.code(409).send(outcome);
+      await notifications.stockChanged(id, outcome.before, outcome.after);
       return loadWritten(db, id);
     },
   );

@@ -4,6 +4,24 @@ const base64Key32 = z.string().refine((value) => Buffer.from(value, 'base64').le
   message: 'must be 32 random bytes encoded as base64 (openssl rand -base64 32)',
 });
 
+const DNS_LABEL = /^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/i;
+
+/** Turns APP_HOSTNAME into `https://<host>`, or null when it is not a valid host (with optional port). */
+function parseSiteUrl(value: string): string | null {
+  if (!/^[a-z0-9.:[\]-]+$/i.test(value)) return null;
+  let url: URL;
+  try {
+    url = new URL(`https://${value}`);
+  } catch {
+    return null;
+  }
+  if (!url.hostname || url.pathname !== '/' || url.search || url.hash) return null;
+  if (!url.hostname.startsWith('[') && !url.hostname.split('.').every((l) => DNS_LABEL.test(l))) {
+    return null;
+  }
+  return url.origin;
+}
+
 const envSchema = z.object({
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
   HOST: z.string().default('0.0.0.0'),
@@ -15,6 +33,14 @@ const envSchema = z.object({
   APP_VERSION: z.string().default('0.0.0-dev'),
   WEB_ROOT: z.string().optional(),
   ATTACHMENTS_DIR: z.string().default('/data/attachments'),
+  // The site's public name (Caddy's too); links in Slack and Teams messages point to it.
+  APP_HOSTNAME: z
+    .string()
+    .trim()
+    .refine((value) => value === '' || parseSiteUrl(value) !== null, {
+      message: 'must be a host name such as itsm.example.com',
+    })
+    .optional(),
   // Microsoft's endpoints; overridden only to test against a stand-in.
   GRAPH_URL: z.url().default('https://graph.microsoft.com/v1.0'),
   LOGIN_URL: z.url().default('https://login.microsoftonline.com'),
@@ -31,6 +57,8 @@ export type Config = {
   version: string;
   webRoot: string | undefined;
   attachmentsDir: string;
+  /** `https://<APP_HOSTNAME>`, or null when it is not set (links are left out of messages). */
+  siteUrl: string | null;
   graphUrl: string;
   loginUrl: string;
 };
@@ -65,6 +93,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     version: parsed.APP_VERSION,
     webRoot: parsed.WEB_ROOT,
     attachmentsDir: parsed.ATTACHMENTS_DIR,
+    siteUrl: parsed.APP_HOSTNAME ? parseSiteUrl(parsed.APP_HOSTNAME) : null,
     graphUrl: parsed.GRAPH_URL.replace(/\/+$/, ''),
     loginUrl: parsed.LOGIN_URL.replace(/\/+$/, ''),
   };

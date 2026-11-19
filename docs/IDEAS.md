@@ -69,3 +69,12 @@ says so.
   team signature, and the requester's previous message quoted below, would read more like mail.
 - **CC on tickets.** Replies go to the requester only; people copied on the first email are not
   kept or copied back.
+
+## Notifications
+
+- **Direct messages to the assignee.** Webhooks post to a channel, so "assigned to you" goes to
+  the team channel. A Slack app or Teams bot could message the technician directly.
+- **More events.** Requester replies, tickets waiting too long, and a secret about to expire
+  (mailbox, API tokens) could post too; M8 covers new tickets, assignments and low stock.
+- **Ticket queues per channel.** Channels take every ticket. With queues or categories, each
+  team's channel could take only its own.

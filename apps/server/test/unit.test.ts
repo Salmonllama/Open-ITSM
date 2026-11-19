@@ -11,6 +11,7 @@ import {
   referencedMessageIds,
   ticketNumberInSubject,
 } from '../src/mail/headers.js';
+import { deliveryError, post } from '../src/notifications/messages.js';
 import { runRecovery } from '../src/recovery.js';
 import { recoveryIo } from './helpers/io.js';
 import { unusedDb } from './helpers/app.js';
@@ -133,6 +134,29 @@ describe('attachment names', () => {
   it('downloads under the original name in any browser', () => {
     expect(attachmentDisposition('Résumé "final".pdf')).toBe(
       `attachment; filename="R_sum_ _final_.pdf"; filename*=UTF-8''R%C3%A9sum%C3%A9%20%22final%22.pdf`,
+    );
+  });
+});
+
+describe('notification delivery errors', () => {
+  it('marks 429, 5xx and network errors temporary without promising a retry', async () => {
+    const rateLimited = deliveryError('slack', 429, '');
+    expect(rateLimited.temporary).toBe(true);
+    expect(rateLimited.message).not.toMatch(/tried again/i);
+
+    const unavailable = deliveryError('teams', 503, '');
+    expect(unavailable.temporary).toBe(true);
+    expect(unavailable.message).not.toMatch(/tried again/i);
+
+    const secretUrl = 'https://hooks.slack.com/services/T0/B0/topsecret';
+    const failFetch: typeof fetch = () => Promise.reject(new Error(`failed: ${secretUrl}`));
+    await expect(
+      post(failFetch, 'slack', secretUrl, { title: 't', detail: 'd' }),
+    ).rejects.toSatisfy(
+      (err: { temporary?: boolean; message?: string }) =>
+        err.temporary === true &&
+        !err.message?.includes('topsecret') &&
+        !/tried again/i.test(err.message ?? ''),
     );
   });
 });
