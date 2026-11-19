@@ -21,6 +21,7 @@ voice, logo) and the page mockups that every screen must follow.
 | M8 Slack and Teams notifications per channel                            | Done (CI green on PR #15)                               |
 | M9 Entra ID single sign-on with technician group and recovery CLI       | Done (local check green; part of v1 PR)                 |
 | M10 Optional end-user portal with Entra ID and one-time email links     | Done (local check green; part of v1 PR)                 |
+| M11 Backups, restore, install scripts, operator docs, E2E, release CI   | Done (local check + Playwright E2E green; v1 PR)        |
 
 Update this table when a milestone is committed.
 
@@ -54,6 +55,7 @@ pnpm lint                    # eslint
 pnpm format                  # prettier --write (format:check in CI)
 pnpm typecheck               # tsc --noEmit in every package
 pnpm test                    # vitest in every package
+pnpm test:e2e                # Playwright E2E smoke test (needs built dist + TEST_DATABASE_URL)
 pnpm check                   # lint + format:check + typecheck + test
 
 # Integration tests need PostgreSQL; they are skipped when TEST_DATABASE_URL is unset.
@@ -71,6 +73,7 @@ pnpm --filter @open-itsm/server db:generate --name <change>
 # Recovery CLI (in production: docker compose exec app itsm <command>)
 pnpm --filter @open-itsm/server cli list-users
 pnpm --filter @open-itsm/server cli reset-password admin@example.com [--enable]
+pnpm --filter @open-itsm/server cli disable-sso
 ```
 
 `pnpm dev` reads `../../.env` for the server if it exists; set `DATABASE_URL` to a reachable
@@ -466,6 +469,22 @@ Dockerfile        multi-stage; runtime runs as `node`, files root-owned
   (`kind != 'note'`), and can reply to their own open tickets (moving `waiting_on_user` back to
   `in_progress`). Phone-friendly layout at `/portal`.
 - **New dependencies in M10:** none.
+- **Backups and restore (M11):** portable `.tar.gz` archives (`open-itsm-<UTC>-<reason>.tar.gz`) in
+  `BACKUPS_DIR` (`/data/backups`) containing `manifest.json`, `database.dump` (`pg_dump --format=custom
+--no-owner --no-privileges`, credentials passed via `PG*` env vars so passwords never enter argv),
+  and `attachments/`. Nightly `pg-boss` job at 02:00 UTC prunes archives older than
+  `BACKUP_RETENTION_DAYS` (14 by default, always keeping the newest). Before applying pending
+  migrations to an existing database, `server.ts` automatically creates a `pre_migration` backup
+  and refuses to migrate if it fails in production. Admins manage/download backups on
+  `/admin/backups` (ADMIN_ONLY, no token scope; audited). `Dockerfile` installs
+  `postgresql18-client` and `tar` in the runtime image. `scripts/restore.sh <file>` restores both
+  DB and attachments volume; `test/backup.integration.test.ts` proves backup -> fresh DB restore.
+- **Install, TLS, E2E and release (M11):** `scripts/install.sh` (Linux) and `scripts/install.ps1`
+  (Windows evaluation) generate secrets and start the Compose stack; `compose.yml` mounts
+  `./certs:/certs:ro` with optional `CADDY_TLS` for custom internal certs. Operator guide in
+  `docs/OPERATIONS.md`. Multi-arch GHCR release workflow in `.github/workflows/release.yml`.
+- **New devDependency in M11:** `@playwright/test` (root), per `docs/IMPLEMENTATION.md`, for the
+  end-to-end browser smoke test (`e2e/smoke.spec.ts`) covering M0–M11.
 
 ## Open questions
 

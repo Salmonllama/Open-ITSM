@@ -9,6 +9,7 @@ import { buildApp, type AppOptions } from '../../src/app.js';
 import { EntraService, type EntraOptions } from '../../src/auth/entra.js';
 import { SESSION_COOKIE } from '../../src/auth/http.js';
 import { SetupToken } from '../../src/auth/setup-token.js';
+import { BackupService, type BackupOptions } from '../../src/backups/service.js';
 import { createDb, createPool, type Db } from '../../src/db/client.js';
 import { MailService, type MailOptions } from '../../src/mail/service.js';
 import { NotificationService, type NotificationOptions } from '../../src/notifications/service.js';
@@ -78,6 +79,21 @@ export function makeNotifications(db: Db, options: Partial<NotificationOptions> 
   );
 }
 
+export function makeBackups(db: Db, options: Partial<BackupOptions> = {}) {
+  return new BackupService(
+    db,
+    {
+      databaseUrl: 'postgres://unused@127.0.0.1:1/unused',
+      attachmentsDir: mkdtempSync(path.join(tmpdir(), 'open-itsm-att-')),
+      backupsDir: mkdtempSync(path.join(tmpdir(), 'open-itsm-bak-')),
+      retentionDays: 14,
+      appVersion: '1.2.3',
+      ...options,
+    },
+    pino({ level: 'silent' }),
+  );
+}
+
 export async function makeApp(overrides: Partial<AppOptions> = {}) {
   const db = overrides.db ?? unusedDb();
   const { mail: defaultMail, store } = makeMail(db);
@@ -94,6 +110,7 @@ export async function makeApp(overrides: Partial<AppOptions> = {}) {
     db,
     entra,
     portal,
+    backups: makeBackups(db),
     mail,
     notifications: makeNotifications(db),
     attachments: store,

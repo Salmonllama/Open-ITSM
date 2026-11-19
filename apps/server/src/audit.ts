@@ -34,7 +34,10 @@ export type AuditAction =
   | 'settings.entra_disabled'
   | 'settings.portal_updated'
   | 'login_link.requested'
-  | 'login_link.failed';
+  | 'login_link.failed'
+  | 'backup.created'
+  | 'backup.failed'
+  | 'backup.downloaded';
 
 export type AuditEntry = {
   action: AuditAction;

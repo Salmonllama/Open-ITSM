@@ -33,6 +33,8 @@ const envSchema = z.object({
   APP_VERSION: z.string().default('0.0.0-dev'),
   WEB_ROOT: z.string().optional(),
   ATTACHMENTS_DIR: z.string().default('/data/attachments'),
+  BACKUPS_DIR: z.string().default('/data/backups'),
+  BACKUP_RETENTION_DAYS: z.coerce.number().int().min(1).max(365).default(14),
   // The site's public name (Caddy's too); links in Slack and Teams messages point to it.
   APP_HOSTNAME: z
     .string()
@@ -57,6 +59,8 @@ export type Config = {
   version: string;
   webRoot: string | undefined;
   attachmentsDir: string;
+  backupsDir: string;
+  backupRetentionDays: number;
   /** `https://<APP_HOSTNAME>`, or null when it is not set (links are left out of messages). */
   siteUrl: string | null;
   graphUrl: string;
@@ -93,6 +97,8 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     version: parsed.APP_VERSION,
     webRoot: parsed.WEB_ROOT,
     attachmentsDir: parsed.ATTACHMENTS_DIR,
+    backupsDir: parsed.BACKUPS_DIR,
+    backupRetentionDays: parsed.BACKUP_RETENTION_DAYS,
     siteUrl: parsed.APP_HOSTNAME ? parseSiteUrl(parsed.APP_HOSTNAME) : null,
     graphUrl: parsed.GRAPH_URL.replace(/\/+$/, ''),
     loginUrl: parsed.LOGIN_URL.replace(/\/+$/, ''),

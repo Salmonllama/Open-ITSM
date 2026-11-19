@@ -6,6 +6,7 @@ import {
   assignmentSuggestionsSchema,
   assetTypeSchema,
   authMethodsSchema,
+  backupStatusSchema,
   consumableDetailSchema,
   consumableListResponseSchema,
   entraSettingsSchema,
@@ -231,3 +232,8 @@ export function portalTicketQuery(id: string) {
       apiRequest('GET', `/api/portal/tickets/${id}`, { schema: portalTicketDetailSchema }),
   });
 }
+
+export const backupStatusQuery = queryOptions({
+  queryKey: ['backups'],
+  queryFn: () => apiRequest('GET', '/api/backups', { schema: backupStatusSchema }),
+});

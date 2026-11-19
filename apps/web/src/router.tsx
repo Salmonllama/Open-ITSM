@@ -1,5 +1,6 @@
 import { QueryClient } from '@tanstack/react-query';
 import { createRouter } from '@tanstack/react-router';
+import { adminBackupsRoute } from './routes/admin-backups';
 import { adminEmailRoute } from './routes/admin-email';
 import { adminNotificationsRoute } from './routes/admin-notifications';
 import { adminPortalRoute } from './routes/admin-portal';
@@ -55,6 +56,7 @@ const routeTree = rootRoute.addChildren([
     adminNotificationsRoute,
     adminSsoRoute,
     adminPortalRoute,
+    adminBackupsRoute,
   ]),
 ]);
 

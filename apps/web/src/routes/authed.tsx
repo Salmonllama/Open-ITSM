@@ -4,6 +4,7 @@ import {
   Activity,
   Bell,
   BookOpen,
+  HardDriveDownload,
   Inbox,
   KeyRound,
   Laptop,
@@ -163,6 +164,13 @@ function AuthedLayout() {
           >
             End-user portal
           </NavLink>
+          <NavLink
+            to="/admin/backups"
+            icon={<HardDriveDownload strokeWidth={1.75} />}
+            onNavigate={onNavigate}
+          >
+            Backups
+          </NavLink>
         </>
       )}
       <a href="/api/docs" className={navLinkClasses}>
@@ -305,7 +313,8 @@ function NavLink({
     | '/admin/email'
     | '/admin/notifications'
     | '/admin/sso'
-    | '/admin/portal';
+    | '/admin/portal'
+    | '/admin/backups';
   exact?: boolean;
   icon: ReactNode;
   onNavigate?: () => void;
